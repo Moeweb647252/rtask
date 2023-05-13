@@ -1,0 +1,16 @@
+entries:
+- id: 1
+  name: null
+  command: example
+  env: null
+  working_dir: null
+  log: Default
+  timer: !Once
+    second: 0
+    minute: 0
+    hour: 0
+    day: 1
+    month: 0
+    year: 0
+address: 0.0.0.0:6472
+token: Misaka647252
