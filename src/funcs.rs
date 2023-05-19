@@ -1,5 +1,5 @@
 use crate::types::*;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
@@ -16,7 +16,7 @@ impl Operation {
           return Ok(Operation::Help(Some(OperationType::Add)));
         }
         let time = Time::from_args(args)?;
-        let mut entry = Entry::from_args(args, &time)?;
+        let entry = Entry::from_args(args, &time)?;
 
         operation = Operation::Add(entry);
       }
@@ -93,7 +93,7 @@ impl Operation {
 }
 
 impl Time {
-  pub fn from_args(args: &Vec<String>) -> Result<Time, Box<dyn Error>> {
+  pub fn from_args(args: &[String]) -> Result<Time, Box<dyn Error>> {
     let mut time: Time = Time::default();
     let mut hasarg = false;
     let err = "Invalid argument";
@@ -141,14 +141,14 @@ impl Time {
 }
 
 impl Entry {
-  pub fn from_args(args: &Vec<String>, time: &Time) -> Result<Self, Box<dyn Error>> {
+  pub fn from_args(args: &[String], time: &Time) -> Result<Self, Box<dyn Error>> {
     let mut entry: Self = Self::default();
     let err = "Invalid argument";
     for (index, arg) in args.iter().enumerate() {
       match arg.as_str() {
         "-c" => {
           let command = args.get(index + 1).ok_or(err)?.clone();
-          entry.command = command;
+          entry.action = Action::Command(command);
         }
         "--once" => {
           entry.timer = Timer::Once(time.clone());
@@ -166,7 +166,7 @@ impl Entry {
         }
         "--env" => {
           let env = args.get(index + 1).ok_or(err)?.clone();
-          entry.env = Some(env.split(",").map(|s| s.to_string()).collect());
+          entry.env = Some(env.split(',').map(|s| s.to_string()).collect());
         }
         _ => (),
       }
@@ -187,7 +187,7 @@ impl Default for Config {
   fn default() -> Self {
     Self {
       entries: Vec::new(),
-      address: String::from("0.0.0.0:6472"),
+      address: Some(String::from("0.0.0.0:6472")),
       token: generate_token(),
     }
   }

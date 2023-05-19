@@ -1,19 +1,14 @@
-use serde_json::Serializer;
 use std::sync::RwLock;
 
 use crate::types::*;
 use crate::utils::*;
 
-use actix_web::{
-  web::{self, Json},
-  App, HttpServer, Responder,
-};
-use serde_json::Value;
+use actix_web::{web, App, HttpServer, Responder};
 use tokio::runtime::Runtime;
 
 async fn get_entries(data: ReqData, state: RS) -> impl Responder {
   let rtodo = state.rtodo.read().unwrap();
-  if check_token(&data, &rtodo) == false {
+  if !check_token(&data, &rtodo) {
     return nerr(100, "Invalid token");
   }
   let entries = serde_json::to_string(&rtodo.get_entries()).unwrap();
@@ -22,7 +17,7 @@ async fn get_entries(data: ReqData, state: RS) -> impl Responder {
 
 async fn validate_token(data: ReqData, state: RS) -> impl Responder {
   let rtodo = state.rtodo.read().unwrap();
-  if check_token(&data, &rtodo) == false {
+  if !check_token(&data, &rtodo) {
     return nerr(100, "Invalid token");
   }
   nsucc(200, "Valid token")
@@ -46,7 +41,7 @@ pub fn start_server(rtodo: Rtodo) -> std::io::Result<()> {
           .route("/validateToken", web::post().to(validate_token)),
       )
     })
-    .bind(addr)?
+    .bind(addr.unwrap_or("0.0.0.0:6472".to_string()))?
     .run()
     .await
   })

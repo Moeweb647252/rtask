@@ -1,6 +1,5 @@
 use actix_web::web;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::RwLock;
 
 pub type RS = web::Data<RtodoState>;
@@ -30,8 +29,9 @@ pub struct Rtodo {
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
+  #[serde(default)]
   pub entries: Vec<Entry>,
-  pub address: String,
+  pub address: Option<String>,
   pub token: String,
 }
 
@@ -88,11 +88,23 @@ impl Default for Timer {
   }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub enum Action {
+  Command(String),
+  None,
+}
+
+impl Default for Action {
+  fn default() -> Self {
+    Action::None
+  }
+}
+
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Entry {
   pub id: i32,
   pub name: Option<String>,
-  pub command: String,
+  pub action: Action,
   pub env: Option<Vec<String>>,
   pub working_dir: Option<String>,
   pub log: Log,
