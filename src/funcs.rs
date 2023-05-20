@@ -148,7 +148,7 @@ impl Entry {
       match arg.as_str() {
         "-c" => {
           let command = args.get(index + 1).ok_or(err)?.clone();
-          entry.action = Action::Command(command);
+          entry.action = Some(Action::Command(command));
         }
         "--once" => {
           entry.timer = Timer::Once(time.clone());

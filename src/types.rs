@@ -53,15 +53,15 @@ pub enum EntryIdentifier {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub enum Log {
+pub enum Logger {
   File(String),
   Default,
   Off,
 }
 
-impl Default for Log {
+impl Default for Logger {
   fn default() -> Self {
-    Log::Default
+    Self::Default
   }
 }
 
@@ -104,10 +104,10 @@ impl Default for Action {
 pub struct Entry {
   pub id: i32,
   pub name: Option<String>,
-  pub action: Action,
+  pub action: Option<Action>,
   pub env: Option<Vec<String>>,
   pub working_dir: Option<String>,
-  pub log: Log,
+  pub logger: Logger,
   pub timer: Timer,
 }
 

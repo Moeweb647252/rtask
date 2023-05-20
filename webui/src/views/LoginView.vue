@@ -1,25 +1,42 @@
 <script lang="ts" setup>
-import { NCard, NSpace, NInput, NButton } from 'naive-ui';
+import { NCard, NSpace, NInput, NButton, NCheckbox } from 'naive-ui';
 import { ref } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
+import { useStore } from '../stores/storage'
+import { CONFIG } from '../config';
+import { useDialog } from 'naive-ui';
+
+document.title = 'Rtodo Login';
+
+const dialog = useDialog();
 
 const router = useRouter();
 
 const token = ref('');
 
+const store = useStore();
+
+const remember_me = ref(false);
+
 const login = () => {
   if (token.value) {
-    axios.post('/api/vaildToken', { token: token.value })
+    axios.post(CONFIG.api_addr + '/api/validateToken', { token: token.value })
       .then((res) => {
         if (res.data.code === 200) {
+          store.setRememberMe(remember_me.value);
+          store.setToken(token.value);
           router.push('/')
         } else {
-          alert('Login failed');
+          dialog.error({
+            content: 'Login failed',
+          });
         }
       })
       .catch((err) => {
-        alert('Login failed');
+        dialog.error({
+          content: 'Login failed',
+        });
       });
   }
 }
@@ -35,8 +52,9 @@ const login = () => {
       <hr>
       <n-input v-model:value="token" placeholder="token" />
       <br>
+      <n-checkbox v-model:checked="remember_me">Remember me</n-checkbox>
       <n-space style="margin-top: 10px;" justify="center">
-        <n-button type="primary">Login</n-button>
+        <n-button type="primary" v-on:click="login">Login</n-button>
       </n-space>
     </n-card>
   </n-space>
