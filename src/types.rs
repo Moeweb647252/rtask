@@ -1,9 +1,16 @@
 use actix_web::web;
 use serde::{Deserialize, Serialize};
-use std::sync::RwLock;
+use std::sync::{RwLock, Arc};
 
 pub type RS = web::Data<RtodoState>;
 pub type ReqData = web::Json<serde_json::Value>;
+pub type ReqDataT<T> = web::Json<ReqCommonData<T>>;
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ReqCommonData<T> {
+  pub token: String,
+  pub data: Option<T>
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct Err {
@@ -18,7 +25,7 @@ pub struct Succ<T: Serialize> {
 }
 
 pub struct RtodoState {
-  pub rtodo: RwLock<Rtodo>,
+  pub rtodo: Arc<RwLock<Rtodo>>,
 }
 
 pub struct Rtodo {
@@ -35,16 +42,59 @@ pub struct Config {
   pub token: String,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub enum Status {
   Running,
   Paused,
   Pending,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub enum TimeZone {
+  UTC,
+  Local,
+  Offset(i8),
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct DateTime {
+  pub sec: u64,
+  pub min: u64,
+  pub hour: u64,
+  pub day: u64,
+  pub month: u64,
+  pub year: u64,
+  pub time_zone: TimeZone
+}
+
+impl Default for DateTime {
+  fn default() -> Self {
+    Self { sec: 0, min: 0, hour: 0, day: 0, month: 0, year: 0, time_zone: TimeZone::Local }
+  }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Duration {
+  pub sec: u64,
+  pub min: u64,
+  pub hour: u64,
+  pub day: u64,
+  pub month: u64,
+  pub year: u64,
+  pub total_sec: u64,
+}
+
+impl Default for Duration {
+  fn default() -> Self {
+      Self { sec: 0, min: 0, hour: 0, day: 0, month: 0, year: 0, total_sec: 0 }
+  }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Work {
-  pub status: i32,
+  pub status: Status,
   pub entry: Entry,
+  pub last_exec_time: DateTime
 }
 
 pub enum EntryIdentifier {
@@ -65,26 +115,17 @@ impl Default for Logger {
   }
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
-pub struct Time {
-  pub second: u32,
-  pub minute: u32,
-  pub hour: u32,
-  pub day: u32,
-  pub month: u32,
-  pub year: u32,
-}
 #[derive(Serialize, Deserialize, Clone)]
 pub enum Timer {
-  Repeat(Time),
-  Once(Time),
-  ManyTimes(Time, u32),
-  None,
+  Repeat(Duration),
+  Once(DateTime),
+  ManyTimes(Duration, u32),
+  Never,
 }
 
 impl Default for Timer {
   fn default() -> Self {
-    Timer::None
+    Timer::Never
   }
 }
 

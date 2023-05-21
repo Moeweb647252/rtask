@@ -7,7 +7,7 @@ import { useStore } from '@/stores/storage';
 import type { Component } from 'vue';
 import Entries from '@/components/EntriesComponents.vue';
 
-const store = useStore();
+const store = useStore()
 
 const collapsed = ref(false);
 const currentSection = ref(Entries)

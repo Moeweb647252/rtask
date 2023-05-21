@@ -3,5 +3,34 @@
   // 悬停以查看现有属性的描述。
   // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
-  "configurations": []
+  "configurations": [
+  {
+    "type": "lldb",
+    "request": "launch",
+    "name": "Cargo launch(add)",
+    "cargo": {
+      "args": [
+        "build",
+      ]
+    },
+    "args": [
+      "add",
+      "--name",
+      "test",
+      "--repeat",
+      "-c",
+      "test",
+      "-d",
+      "1",
+      "--log-file",
+      "a.log",
+      "--env",
+      "HOST=0.0.0.0",
+      "--dir",
+      "/",
+      "--conf",
+      "1.yaml"
+    ],
+  }
+  ]
 }

@@ -1,6 +1,6 @@
 use rand::Rng;
 use serde::Serialize;
-
+use std::{error::Error, str::FromStr};
 use crate::types::*;
 
 pub fn generate_token() -> String {
@@ -44,4 +44,15 @@ pub fn nerr(code: i32, msg: &str) -> String {
 pub fn nsucc<T: Serialize>(code: i32, data: T) -> String {
   let succ = Succ::new(code, data);
   serde_json::to_string(&succ).unwrap()
+}
+
+pub fn garg<T: FromStr>(args:&[String], index:usize) -> Option<T>  {
+  let err = "Invalid argument";
+  match (match args.get(index).ok_or(err) {
+    Ok(data) => data,
+    Err(err) => {return None;}
+  }).clone().parse::<T>() {
+    Ok(data) => Some(data),
+    Err(err) => None
+  }
 }

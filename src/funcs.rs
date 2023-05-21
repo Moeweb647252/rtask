@@ -1,10 +1,10 @@
 use crate::types::*;
+use crate::utils::*;
+use chrono::{Datelike, Timelike};
 use serde::Serialize;
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
-
-use crate::utils::*;
 
 impl Operation {
   pub fn from_args(args: &Vec<String>) -> Result<Operation, Box<dyn Error>> {
@@ -15,8 +15,9 @@ impl Operation {
         if check_if_help_in_args(args) {
           return Ok(Operation::Help(Some(OperationType::Add)));
         }
-        let time = Time::from_args(args)?;
-        let entry = Entry::from_args(args, &time)?;
+        let time = Timer::from_args(args);
+
+        let entry = Entry::from_args(args, time, Logger::from_args(args)?)?;
 
         operation = Operation::Add(entry);
       }
@@ -92,57 +93,11 @@ impl Operation {
   }
 }
 
-impl Time {
-  pub fn from_args(args: &[String]) -> Result<Time, Box<dyn Error>> {
-    let mut time: Time = Time::default();
-    let mut hasarg = false;
-    let err = "Invalid argument";
-    for (index, arg) in args.iter().enumerate() {
-      match arg.as_str() {
-        "-d" => {
-          hasarg = true;
-          let day = args.get(index + 1).ok_or(err)?.parse::<u32>()?;
-          time.day = day;
-        }
-        "-M" => {
-          hasarg = true;
-          let month = args.get(index + 1).ok_or(err)?.parse::<u32>()?;
-          time.month = month;
-        }
-        "-y" => {
-          hasarg = true;
-          let year = args.get(index + 1).ok_or(err)?.parse::<u32>()?;
-          time.year = year;
-        }
-        "-h" => {
-          hasarg = true;
-          let hour = args.get(index + 1).ok_or(err)?.parse::<u32>()?;
-          time.hour = hour;
-        }
-        "-m" => {
-          hasarg = true;
-          let minute = args.get(index + 1).ok_or(err)?.parse::<u32>()?;
-          time.minute = minute;
-        }
-        "-s" => {
-          hasarg = true;
-          let second = args.get(index + 1).ok_or(err)?.parse::<u32>()?;
-          time.second = second;
-        }
-        _ => (),
-      }
-    }
-    if hasarg {
-      Ok(time)
-    } else {
-      Err("No time argument".into())
-    }
-  }
-}
-
 impl Entry {
-  pub fn from_args(args: &[String], time: &Time) -> Result<Self, Box<dyn Error>> {
+  pub fn from_args(args: &[String], timer: Timer, logger: Logger) -> Result<Self, Box<dyn Error>> {
     let mut entry: Self = Self::default();
+    entry.logger = logger;
+    entry.timer = timer;
     let err = "Invalid argument";
     for (index, arg) in args.iter().enumerate() {
       match arg.as_str() {
@@ -150,17 +105,7 @@ impl Entry {
           let command = args.get(index + 1).ok_or(err)?.clone();
           entry.action = Some(Action::Command(command));
         }
-        "--once" => {
-          entry.timer = Timer::Once(time.clone());
-        }
-        "--repeat" => {
-          entry.timer = Timer::Repeat(time.clone());
-        }
-        "--mt" => {
-          let times = args.get(index + 1).ok_or(err)?.parse::<u32>()?;
-          entry.timer = Timer::ManyTimes(time.clone(), times);
-        }
-        "-n" => {
+        "--name" => {
           let name = args.get(index + 1).ok_or(err)?.clone();
           entry.name = Some(name);
         }
@@ -168,10 +113,30 @@ impl Entry {
           let env = args.get(index + 1).ok_or(err)?.clone();
           entry.env = Some(env.split(',').map(|s| s.to_string()).collect());
         }
+        "--dir" => entry.working_dir = garg(args, index + 1),
         _ => (),
       }
     }
     Ok(entry)
+  }
+}
+
+impl Logger {
+  pub fn from_args(args: &[String]) -> Result<Self, Box<dyn Error>> {
+    let mut logger = Self::Default;
+    for (index, arg) in args.iter().enumerate() {
+      match arg.as_str() {
+        "--log-file" => {
+          logger = match garg(args, index + 1) {
+            Some(data) => Logger::File(data),
+            None => Logger::Off,
+          }
+        }
+        "--log-off" => logger = Logger::Off,
+        _ => (),
+      }
+    }
+    Ok(logger)
   }
 }
 
@@ -226,5 +191,207 @@ impl Err {
 impl<T: Serialize> Succ<T> {
   pub fn new(code: i32, data: T) -> Self {
     Self { code, data }
+  }
+}
+
+impl<T> ReqCommonData<T> {
+  pub fn check_token(&self, rtodo: &Rtodo) -> bool {
+    self.token == rtodo.get_token()
+  }
+}
+
+impl DateTime {
+  fn from_args(args: &[String]) -> Option<Self> {
+    let mut hasarg = false;
+    let mut datetime = Self::default();
+    for (index, arg) in args.iter().enumerate() {
+      match arg.as_str() {
+        "--sec" => {
+          hasarg = true;
+          datetime.sec = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        "--min" => {
+          hasarg = true;
+          datetime.min = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        "--hour" => {
+          hasarg = true;
+          datetime.hour = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        "--day" => {
+          hasarg = true;
+          datetime.day = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        "--month" => {
+          hasarg = true;
+          datetime.month = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        "--year" => {
+          hasarg = true;
+          datetime.year = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        _ => (),
+      }
+    }
+    if hasarg {
+      Some(datetime)
+    } else {
+      None
+    }
+  }
+  pub fn one_day() -> Self {
+    let now = chrono::Local::now();
+    Self {
+      sec: now.second() as u64,
+      min: now.minute() as u64,
+      hour: now.hour() as u64,
+      day: (now.day() + 1) as u64,
+      month: now.month() as u64,
+      year: now.year() as u64,
+      time_zone: TimeZone::Local,
+    }
+  }
+}
+
+impl Duration {
+  fn from_args(args: &[String]) -> Option<Self> {
+    let mut hasarg = false;
+    let mut duration = Self::default();
+    for (index, arg) in args.iter().enumerate() {
+      match arg.as_str() {
+        "--sec" => {
+          hasarg = true;
+          duration.sec = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        "--min" => {
+          hasarg = true;
+          duration.min = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        "--hour" => {
+          hasarg = true;
+          duration.hour = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        "--day" => {
+          hasarg = true;
+          duration.day = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        "--month" => {
+          hasarg = true;
+          duration.month = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        "--year" => {
+          hasarg = true;
+          duration.year = match garg(args, index + 1) {
+            Some(data) => data,
+            None => {
+              continue;
+            }
+          }
+        }
+        _ => (),
+      }
+    }
+    if hasarg {
+      Some(duration)
+    } else {
+      None
+    }
+  }
+  pub fn one_day() -> Self {
+    Self {
+      sec: 0,
+      min: 0,
+      hour: 0,
+      day: 1,
+      month: 0,
+      year: 0,
+      total_sec: 3600,
+    }
+  }
+}
+
+impl Timer {
+  fn from_args(args: &[String]) -> Self {
+    let mut timer = Self::default();
+    let mut hasarg = false;
+    for arg in args.iter() {
+      match arg.as_str() {
+        "--repeat" => {
+          hasarg = true;
+          timer = Self::Repeat(match Duration::from_args(args) {
+            Some(data) => data,
+            None => Duration::one_day(),
+          })
+        }
+        "--once" => {
+          hasarg = true;
+          timer = Self::Once(match DateTime::from_args(args) {
+            Some(data) => data,
+            None => DateTime::one_day(),
+          })
+        }
+        _ => (),
+      }
+    }
+    if hasarg {
+      timer
+    } else {
+      Self::Never
+    }
   }
 }

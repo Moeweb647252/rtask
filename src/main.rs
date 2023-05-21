@@ -1,10 +1,12 @@
 use std::env::args;
 use std::fs;
+use std::sync::RwLock;
 
-mod daemon;
+mod server;
 mod funcs;
 mod types;
 mod utils;
+mod daemon;
 use types::*;
 
 fn main() {
@@ -24,15 +26,14 @@ fn main() {
   let opt = match Operation::from_args(&args) {
     Ok(opt) => opt,
     Err(err) => {
-      println!("{}", err);
+      err.source().unwrap();
       return;
     }
   };
   let config_content = match fs::read(&path) {
     Ok(content) => content,
     Err(_err) => {
-      print!("cannot read config file: {}", path.to_str().unwrap());
-      return;
+      panic!("cannot read config file: {}", path.to_str().unwrap());
     }
   };
   let config: Config = match serde_yaml::from_str(&String::from_utf8_lossy(&config_content)) {
@@ -41,8 +42,7 @@ fn main() {
       if err.to_string().starts_with("missing field") {
         Config::default()
       } else {
-        println!("{}", err);
-        return;
+        panic!("{}", err);
       }
     }
   };
@@ -54,15 +54,16 @@ fn main() {
   };
   match opt {
     Operation::Add(entry) => {
+      let name = entry.name.clone();
       rtodo.add_entry(entry);
+      print!("Succussfully added {}", name.unwrap_or("None".to_string()));
     }
-    Operation::StartDaemon() => match daemon::start_server(rtodo) {
+    Operation::StartDaemon() => match daemon::start_daemon(RwLock::new(rtodo)) {
       Ok(_) => {
         return;
       }
       Err(err) => {
-        println!("{}", err);
-        return;
+        panic!("{}", err);
       }
     },
     _other => (),
@@ -70,7 +71,7 @@ fn main() {
   match rtodo.write_conf() {
     Ok(_) => (),
     Err(err) => {
-      println!("{}", err)
+      panic!("{}", err);
     }
   }
 }

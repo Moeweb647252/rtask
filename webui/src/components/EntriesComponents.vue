@@ -1,19 +1,63 @@
 <script setup lang="ts">
-import { NList } from 'naive-ui';
+import { NList, NListItem, NThing, NCard, NButton, NSpace } from 'naive-ui';
 import axios from 'axios';
 import { CONFIG } from '../config';
 import { useStore } from '@/stores/storage';
-import { ref } from 'vue';
+import { useDialog } from 'naive-ui';
+import { ref, onMounted } from 'vue';
+import type { Ref } from 'vue';
+import type { Entry } from '@/types';
 
 const store = useStore();
+const dialog = useDialog();
 
-const entries: Ref<> = ref([]);
+const entries: Ref<Entry[]> = ref([]);
+
+const fetchEntries = async () => {
+  axios.post(CONFIG.api_addr+"/api/getEntries",
+  {
+    token: store.getToken
+  }).then(
+    (resp)=> {
+      if (resp.data.code == 200) {
+        entries.value = resp.data.data
+      } else {
+        dialog.error({
+          content: "cannot get entries!"
+        })
+      }
+    }
+  ).catch(
+    ()=>{
+      dialog.error({
+        content: "cannot get entries!"
+      })
+    }
+  )
+
+};
+
+onMounted(()=> {
+  fetchEntries()
+})
 
 </script>
 
 <template>
-  <n-list>
-    <n-list-item>1</n-list-item>
-
-  </n-list>
+  <n-card style="word-break: keep-all;">
+    <n-list>
+      <n-list-item v-for="entry in entries">
+        <template #prefix>
+          <h2>{{ entry.name?.toString() }}</h2>
+        </template>
+        <template #suffix>
+          <n-button type="info">Edit</n-button>
+        </template>
+        <n-space>
+          <n-thing title="Action" :description="Object.entries(entry.action)[0][0]"></n-thing>
+          <n-thing title="Timer" :description="Object.entries(entry.timer)[0][0]"></n-thing>
+        </n-space>
+      </n-list-item>
+    </n-list>
+  </n-card>
 </template>
