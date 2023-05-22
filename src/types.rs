@@ -1,6 +1,6 @@
 use actix_web::web;
 use serde::{Deserialize, Serialize};
-use std::sync::{RwLock, Arc};
+use std::sync::{Arc, RwLock};
 
 pub type RS = web::Data<RtodoState>;
 pub type ReqData = web::Json<serde_json::Value>;
@@ -9,7 +9,7 @@ pub type ReqDataT<T> = web::Json<ReqCommonData<T>>;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ReqCommonData<T> {
   pub token: String,
-  pub data: Option<T>
+  pub data: Option<T>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -30,6 +30,7 @@ pub struct RtodoState {
 
 pub struct Rtodo {
   pub config: Config,
+  pub works: Vec<Work>,
   pub cur_entry_id: i32,
   pub conf_path: String,
 }
@@ -51,29 +52,39 @@ pub enum Status {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum TimeZone {
-  UTC,
+  Utc,
   Local,
   Offset(i8),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DateTime {
-  pub sec: u64,
-  pub min: u64,
-  pub hour: u64,
-  pub day: u64,
-  pub month: u64,
-  pub year: u64,
-  pub time_zone: TimeZone
+  pub year: i32,
+  pub month: u32,
+  pub day: u32,
+  pub hour: u32,
+  pub min: u32,
+  pub sec: u32,
+  pub timestamp: i64,
+  pub time_zone: TimeZone,
 }
 
 impl Default for DateTime {
   fn default() -> Self {
-    Self { sec: 0, min: 0, hour: 0, day: 0, month: 0, year: 0, time_zone: TimeZone::Local }
+    Self {
+      sec: 0,
+      min: 0,
+      hour: 0,
+      day: 0,
+      month: 0,
+      year: 0,
+      timestamp: 0,
+      time_zone: TimeZone::Local,
+    }
   }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct Duration {
   pub sec: u64,
   pub min: u64,
@@ -84,17 +95,11 @@ pub struct Duration {
   pub total_sec: u64,
 }
 
-impl Default for Duration {
-  fn default() -> Self {
-      Self { sec: 0, min: 0, hour: 0, day: 0, month: 0, year: 0, total_sec: 0 }
-  }
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Work {
   pub status: Status,
   pub entry: Entry,
-  pub last_exec_time: DateTime
+  pub exec_time: DateTime,
 }
 
 pub enum EntryIdentifier {
@@ -115,30 +120,20 @@ impl Default for Logger {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub enum Timer {
   Repeat(Duration),
   Once(DateTime),
   ManyTimes(Duration, u32),
+  #[default]
   Never,
 }
 
-impl Default for Timer {
-  fn default() -> Self {
-    Timer::Never
-  }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub enum Action {
   Command(String),
+  #[default]
   None,
-}
-
-impl Default for Action {
-  fn default() -> Self {
-    Action::None
-  }
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]

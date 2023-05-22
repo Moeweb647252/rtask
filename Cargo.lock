@@ -975,6 +975,7 @@ dependencies = [
  "actix-web",
  "chrono",
  "env_logger",
+ "log",
  "rand",
  "serde",
  "serde_json",

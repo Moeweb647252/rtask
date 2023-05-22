@@ -1,5 +1,6 @@
 use crate::types::*;
 use crate::utils::*;
+use chrono::TimeZone;
 use chrono::{Datelike, Timelike};
 use serde::Serialize;
 use std::error::Error;
@@ -7,7 +8,7 @@ use std::fs::File;
 use std::io::Write;
 
 impl Operation {
-  pub fn from_args(args: &Vec<String>) -> Result<Operation, Box<dyn Error>> {
+  pub fn from_args(args: &[String]) -> Result<Operation, Box<dyn Error>> {
     let mut operation: Operation = Operation::Help(None);
     let op_str = args[1].clone();
     match op_str.as_str() {
@@ -94,10 +95,19 @@ impl Operation {
 }
 
 impl Entry {
+  pub fn new(timer: Timer, logger: Logger) -> Self {
+    Self {
+      id: 0,
+      name: None,
+      action: None,
+      env: None,
+      working_dir: None,
+      logger,
+      timer,
+    }
+  }
   pub fn from_args(args: &[String], timer: Timer, logger: Logger) -> Result<Self, Box<dyn Error>> {
-    let mut entry: Self = Self::default();
-    entry.logger = logger;
-    entry.timer = timer;
+    let mut entry = Self::new(timer, logger);
     let err = "Invalid argument";
     for (index, arg) in args.iter().enumerate() {
       match arg.as_str() {
@@ -272,14 +282,28 @@ impl DateTime {
   pub fn one_day() -> Self {
     let now = chrono::Local::now();
     Self {
-      sec: now.second() as u64,
-      min: now.minute() as u64,
-      hour: now.hour() as u64,
-      day: (now.day() + 1) as u64,
-      month: now.month() as u64,
-      year: now.year() as u64,
-      time_zone: TimeZone::Local,
+      sec: now.second(),
+      min: now.minute(),
+      hour: now.hour(),
+      day: (now.day() + 1),
+      month: now.month(),
+      year: now.year(),
+      timestamp: now.timestamp() + chrono::Duration::days(1).num_seconds(),
+      time_zone: crate::types::TimeZone::Local,
     }
+  }
+
+  pub fn timestamp(&self) -> i64 {
+    chrono::Local
+      .with_ymd_and_hms(
+        self.year, self.month, self.day, self.hour, self.min, self.sec,
+      )
+      .unwrap()
+      .timestamp()
+  }
+
+  pub fn is_up(&self) -> bool {
+    self.timestamp() >= chrono::Local::now().timestamp()
   }
 }
 

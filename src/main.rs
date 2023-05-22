@@ -2,14 +2,15 @@ use std::env::args;
 use std::fs;
 use std::sync::RwLock;
 
-mod server;
+mod daemon;
 mod funcs;
+mod server;
 mod types;
 mod utils;
-mod daemon;
 use types::*;
 
 fn main() {
+  env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
   let args: Vec<String> = args().collect();
   let mut path = std::path::PathBuf::from("/etc/rtodo/rtodo.conf");
   if args.len() < 2 {
@@ -49,6 +50,7 @@ fn main() {
   let cur_entry_id = config.entries.iter().map(|i| i.id).max().unwrap_or(0);
   let mut rtodo = Rtodo {
     conf_path: path.to_str().unwrap().to_string(),
+    works: Vec::new(),
     config,
     cur_entry_id,
   };

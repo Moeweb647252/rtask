@@ -1,7 +1,7 @@
+use crate::types::*;
 use rand::Rng;
 use serde::Serialize;
-use std::{error::Error, str::FromStr};
-use crate::types::*;
+use std::str::FromStr;
 
 pub fn generate_token() -> String {
   let mut rng = rand::thread_rng();
@@ -18,7 +18,7 @@ pub fn generate_token() -> String {
   token
 }
 
-pub fn check_if_help_in_args(args: &Vec<String>) -> bool {
+pub fn check_if_help_in_args(args: &[String]) -> bool {
   for arg in args.iter() {
     if arg == "--help" {
       return true;
@@ -46,13 +46,18 @@ pub fn nsucc<T: Serialize>(code: i32, data: T) -> String {
   serde_json::to_string(&succ).unwrap()
 }
 
-pub fn garg<T: FromStr>(args:&[String], index:usize) -> Option<T>  {
+pub fn garg<T: FromStr>(args: &[String], index: usize) -> Option<T> {
   let err = "Invalid argument";
   match (match args.get(index).ok_or(err) {
     Ok(data) => data,
-    Err(err) => {return None;}
-  }).clone().parse::<T>() {
+    Err(_) => {
+      return None;
+    }
+  })
+  .clone()
+  .parse::<T>()
+  {
     Ok(data) => Some(data),
-    Err(err) => None
+    Err(_) => None,
   }
 }

@@ -1,4 +1,4 @@
-use std::sync::{RwLock, Arc};
+use std::sync::{Arc, RwLock};
 
 use crate::types::*;
 use crate::utils::*;
@@ -42,12 +42,10 @@ async fn validate_token(data: ReqData, state: RS) -> impl Responder {
   nsucc(200, "Valid token")
 }
 
-
 pub fn start_server(rtodo: &Arc<RwLock<Rtodo>>) -> std::io::Result<()> {
   let rt = Runtime::new().unwrap();
   let addr = rtodo.read().unwrap().config.address.clone();
   rt.block_on(async {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let state = web::Data::new(RtodoState {
       rtodo: rtodo.clone(),
     });
@@ -65,8 +63,7 @@ pub fn start_server(rtodo: &Arc<RwLock<Rtodo>>) -> std::io::Result<()> {
             )
             .route("/getEntries", web::post().to(get_entries))
             .route("/validateToken", web::post().to(validate_token))
-            .route("/addEntry", web::post().to(add_entries))
-            
+            .route("/addEntry", web::post().to(add_entries)),
         )
         .service(web::resource("/").route(web::get().to(hello)))
     })
