@@ -3,9 +3,12 @@ use crate::utils::*;
 use chrono::TimeZone;
 use chrono::{Datelike, Timelike};
 use serde::Serialize;
+use std::env;
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
+use sysinfo::{SystemExt, UserExt};
 
 impl Operation {
   pub fn from_args(args: &[String]) -> Result<Operation, Box<dyn Error>> {
@@ -100,8 +103,6 @@ impl Entry {
       id: 0,
       name: None,
       action: None,
-      env: None,
-      working_dir: None,
       logger,
       timer,
     }
@@ -111,19 +112,10 @@ impl Entry {
     let err = "Invalid argument";
     for (index, arg) in args.iter().enumerate() {
       match arg.as_str() {
-        "-c" => {
-          let command = args.get(index + 1).ok_or(err)?.clone();
-          entry.action = Some(Action::Command(command));
-        }
         "--name" => {
           let name = args.get(index + 1).ok_or(err)?.clone();
           entry.name = Some(name);
         }
-        "--env" => {
-          let env = args.get(index + 1).ok_or(err)?.clone();
-          entry.env = Some(env.split(',').map(|s| s.to_string()).collect());
-        }
-        "--dir" => entry.working_dir = garg(args, index + 1),
         _ => (),
       }
     }
@@ -417,5 +409,72 @@ impl Timer {
     } else {
       Self::Never
     }
+  }
+}
+
+impl Execute {
+  pub fn from_args(args: &[String]) -> Option<Self> {
+    let mut execute = Self::default();
+    let mut hasarg = false;
+    for (index, arg) in args.iter().enumerate() {
+      match arg.as_str() {
+        "--exec" => {
+          execute.executable = PathBuf::from(match garg::<String>(args, index + 1) {
+            Some(data) => data,
+            None => continue,
+          });
+          hasarg = true;
+        }
+        "--env" => {
+          execute.env = Some(
+            (match garg::<String>(args, index + 1) {
+              Some(data) => data,
+              None => continue,
+            })
+            .split(',')
+            .map(|s| s.to_string())
+            .collect(),
+          );
+        }
+        "--dir" => execute.working_dir = garg(args, index + 1),
+        "--username" => execute.user = SystemUser::from_un(garg(args, index + 1)),
+        _ => (),
+      }
+    }
+    if hasarg {
+      Some(execute)
+    } else {
+      None
+    }
+  }
+}
+
+impl Action {
+  pub fn from_args(args: &[String]) -> Self {
+    let action = Self::default();
+    Self::None
+  }
+}
+
+impl SystemUser {
+  pub fn from_un(un: Option<String>) -> Option<Self> {
+    let un = match un {
+      Some(data) => data,
+      None => return None,
+    };
+    let info = sysinfo::System::new_with_specifics(sysinfo::RefreshKind::new().with_users_list());
+    for user in info.users().iter() {
+      if user.name() == un {
+        return Some(match env::consts::OS {
+          "linux" => Self::Unix(UnixUser {
+            uid: **user.id(),
+            gid: *user.group_id(),
+            username: user.name().to_string(),
+          }),
+          _ => return None,
+        });
+      }
+    }
+    None
   }
 }

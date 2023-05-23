@@ -9,8 +9,8 @@ use std::time;
 pub fn start_daemon(rtodo_rwl: RwLock<Rtodo>) -> Result<(), Box<dyn Error>> {
   let rtodo_rwl = Arc::new(rtodo_rwl);
   let rtodo_rwl_move = rtodo_rwl.clone();
-  thread::spawn(move || start_server(&rtodo_rwl_move));
-  thread::spawn(move || loop {
+  let server_thread = thread::spawn(move || start_server(&rtodo_rwl_move));
+  let executor_thread = thread::spawn(move || loop {
     thread::sleep(time::Duration::from_millis(100));
     let works = match rtodo_rwl.read() {
       Ok(data) => data,

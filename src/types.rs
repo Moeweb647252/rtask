@@ -1,6 +1,9 @@
 use actix_web::web;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
+use std::{
+  path::PathBuf,
+  sync::{Arc, RwLock},
+};
 
 pub type RS = web::Data<RtodoState>;
 pub type ReqData = web::Json<serde_json::Value>;
@@ -129,9 +132,36 @@ pub enum Timer {
   Never,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct UnixUser {
+  pub uid: u32,
+  pub gid: u32,
+  pub username: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct WindowsUser {
+  pub username: String,
+  pub group_windows: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum SystemUser {
+  Unix(UnixUser),
+  Windows(WindowsUser),
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct Execute {
+  pub env: Option<Vec<String>>,
+  pub working_dir: Option<String>,
+  pub executable: PathBuf,
+  pub user: Option<SystemUser>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub enum Action {
-  Command(String),
+  Exec(String),
   #[default]
   None,
 }
@@ -141,8 +171,6 @@ pub struct Entry {
   pub id: i32,
   pub name: Option<String>,
   pub action: Option<Action>,
-  pub env: Option<Vec<String>>,
-  pub working_dir: Option<String>,
   pub logger: Logger,
   pub timer: Timer,
 }
