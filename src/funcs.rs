@@ -7,7 +7,9 @@ use std::env;
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
+use std::ops;
 use std::path::PathBuf;
+use std::process::Output;
 use sysinfo::{SystemExt, UserExt};
 
 impl Operation {
@@ -19,10 +21,12 @@ impl Operation {
         if check_if_help_in_args(args) {
           return Ok(Operation::Help(Some(OperationType::Add)));
         }
-        let time = Timer::from_args(args);
-
-        let entry = Entry::from_args(args, time, Logger::from_args(args)?)?;
-
+        let entry = Entry::from_args(
+          args,
+          Timer::from_args(args),
+          Logger::from_args(args)?,
+          Action::from_args(args),
+        )?;
         operation = Operation::Add(entry);
       }
       "delete" => {
@@ -98,24 +102,31 @@ impl Operation {
 }
 
 impl Entry {
-  pub fn new(timer: Timer, logger: Logger) -> Self {
+  pub fn new(timer: Timer, logger: Logger, action: Action) -> Self {
     Self {
       id: 0,
-      name: None,
-      action: None,
+      name: String::new(),
+      action,
       logger,
       timer,
     }
   }
-  pub fn from_args(args: &[String], timer: Timer, logger: Logger) -> Result<Self, Box<dyn Error>> {
-    let mut entry = Self::new(timer, logger);
+  pub fn from_args(
+    args: &[String],
+    timer: Timer,
+    logger: Logger,
+    action: Action,
+  ) -> Result<Self, Box<dyn Error>> {
+    let mut entry = Self::new(timer, logger, action);
     let err = "Invalid argument";
+    entry.name = random_name();
     for (index, arg) in args.iter().enumerate() {
       match arg.as_str() {
         "--name" => {
           let name = args.get(index + 1).ok_or(err)?.clone();
-          entry.name = Some(name);
+          entry.name = name;
         }
+        "--some" => (),
         _ => (),
       }
     }
@@ -203,7 +214,34 @@ impl<T> ReqCommonData<T> {
 }
 
 impl DateTime {
-  fn from_args(args: &[String]) -> Option<Self> {
+  pub fn from_ymd_hms(
+    year: i32,
+    month: u32,
+    day: u32,
+    hour: u32,
+    min: u32,
+    sec: u32,
+  ) -> Option<Self> {
+    let new = match chrono::Local
+      .with_ymd_and_hms(year, month, day, hour, min, sec)
+      .single()
+    {
+      Some(data) => data,
+      None => return None,
+    };
+    Some(Self {
+      sec: new.second(),
+      min: new.minute(),
+      hour: new.hour(),
+      day: new.day(),
+      month: new.month(),
+      year: new.year(),
+      timestamp: new.timestamp(),
+      time_zone: crate::types::TimeZone::Local,
+    })
+  }
+
+  pub fn from_args(args: &[String]) -> Option<Self> {
     let mut hasarg = false;
     let mut datetime = Self::default();
     for (index, arg) in args.iter().enumerate() {
@@ -296,6 +334,20 @@ impl DateTime {
 
   pub fn is_up(&self) -> bool {
     self.timestamp() >= chrono::Local::now().timestamp()
+  }
+}
+
+impl ops::Add<Duration> for DateTime {
+  type Output = Option<DateTime>;
+  fn add(self, duration: Duration) -> Self::Output {
+    Self::from_ymd_hms(
+      self.year + duration.year,
+      self.month + duration.month,
+      self.day + duration.day,
+      self.hour + duration.hour,
+      self.min + duration.min,
+      self.sec + duration.sec,
+    )
   }
 }
 
@@ -447,12 +499,34 @@ impl Execute {
       None
     }
   }
+
+  pub fn exec(&self) -> Result<(), Box<dyn Error>> {
+    Ok(())
+  }
 }
 
 impl Action {
   pub fn from_args(args: &[String]) -> Self {
-    let action = Self::default();
-    Self::None
+    let mut action = Self::default();
+    let mut hasarg = false;
+    for arg in args {
+      match arg.as_str() {
+        "--exec" => {
+          action = Action::Exec(match Execute::from_args(args) {
+            Some(data) => data,
+            None => continue,
+          });
+          hasarg = true;
+        }
+        "--some" => (),
+        _ => (),
+      }
+    }
+    if hasarg {
+      action
+    } else {
+      Self::None
+    }
   }
 }
 
@@ -476,5 +550,20 @@ impl SystemUser {
       }
     }
     None
+  }
+}
+
+impl Work {
+  pub fn complete(&mut self) -> Result<(), Box<dyn Error>> {
+    self.status = Status::Pending;
+    match self.entry.timer {
+      Timer::Repeat(timer) => {
+        self.exec_time = match self.exec_time + timer {
+          Some(data) => data,
+          None => return,
+        }
+      }
+    }
+    Ok(())
   }
 }

@@ -19,10 +19,40 @@ pub fn start_daemon(rtodo_rwl: RwLock<Rtodo>) -> Result<(), Box<dyn Error>> {
         continue;
       }
     }
-    .works
-    .clone();
-    for work in works.iter() {
-      if work.exec_time.is_up() {}
+    .works;
+    for work_rwl in works.iter() {
+      let work_read_guard = match work_rwl.read() {
+        Ok(data) => data,
+        Err(err) => {
+          error!("Error: Internal error: {}", err);
+          continue;
+        }
+      };
+      if work_read_guard.exec_time.is_up() {
+        match &work_read_guard.entry.action {
+          Action::Exec(execute) => match execute.exec() {
+            Ok(_) => {
+              (match work_rwl.write() {
+                Ok(data) => data,
+                Err(err) => {
+                  error!(
+                    "Error: {} \n failed at executing {}",
+                    err, work_read_guard.entry.name
+                  );
+                  continue;
+                }
+              }).
+            }
+            Err(err) => {
+              error!(
+                "Error: {} \n failed at executing {}",
+                err, work_read_guard.entry.name
+              )
+            }
+          },
+          Action::None => (),
+        }
+      }
     }
   });
   Ok(())

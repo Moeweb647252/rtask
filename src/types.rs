@@ -33,7 +33,7 @@ pub struct RtodoState {
 
 pub struct Rtodo {
   pub config: Config,
-  pub works: Vec<Work>,
+  pub works: Vec<RwLock<Work>>,
   pub cur_entry_id: i32,
   pub conf_path: String,
 }
@@ -89,12 +89,12 @@ impl Default for DateTime {
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct Duration {
-  pub sec: u64,
-  pub min: u64,
-  pub hour: u64,
-  pub day: u64,
-  pub month: u64,
-  pub year: u64,
+  pub year: i32,
+  pub month: u32,
+  pub day: u32,
+  pub hour: u32,
+  pub min: u32,
+  pub sec: u32,
   pub total_sec: u64,
 }
 
@@ -161,7 +161,7 @@ pub struct Execute {
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub enum Action {
-  Exec(String),
+  Exec(Execute),
   #[default]
   None,
 }
@@ -169,8 +169,8 @@ pub enum Action {
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Entry {
   pub id: i32,
-  pub name: Option<String>,
-  pub action: Option<Action>,
+  pub name: String,
+  pub action: Action,
   pub logger: Logger,
   pub timer: Timer,
 }

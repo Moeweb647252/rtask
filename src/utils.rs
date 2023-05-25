@@ -61,3 +61,7 @@ pub fn garg<T: FromStr>(args: &[String], index: usize) -> Option<T> {
     Err(_) => None,
   }
 }
+
+pub fn random_name() -> String {
+  "Not impled".to_string()
+}

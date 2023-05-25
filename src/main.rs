@@ -58,7 +58,7 @@ fn main() {
     Operation::Add(entry) => {
       let name = entry.name.clone();
       rtodo.add_entry(entry);
-      print!("Succussfully added {}", name.unwrap_or("None".to_string()));
+      print!("Succussfully added {}", name);
     }
     Operation::StartDaemon() => match daemon::start_daemon(RwLock::new(rtodo)) {
       Ok(_) => {
