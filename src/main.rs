@@ -1,6 +1,6 @@
 use std::env::args;
 use std::fs;
-use std::sync::RwLock;
+use std::sync::{RwLock};
 
 mod daemon;
 mod funcs;

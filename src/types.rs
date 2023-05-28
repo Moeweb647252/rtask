@@ -2,12 +2,17 @@ use actix_web::web;
 use serde::{Deserialize, Serialize};
 use std::{
   path::PathBuf,
-  sync::{Arc, RwLock},
+  sync::{Arc, RwLock}, collections::HashMap,
 };
 
 pub type RS = web::Data<RtodoState>;
 pub type ReqData = web::Json<serde_json::Value>;
 pub type ReqDataT<T> = web::Json<ReqCommonData<T>>;
+
+#[derive(Debug)]
+pub struct RtodoError {
+  pub msg: String,
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ReqCommonData<T> {
@@ -48,6 +53,7 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum Status {
+  Error,
   Running,
   Paused,
   Pending,
@@ -98,11 +104,19 @@ pub struct Duration {
   pub total_sec: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Clone)]
+pub struct Process {
+  pub pid: u32,
+  pub output_tmp_file: Option<PathBuf>,
+}
+
+#[derive(Serialize, Clone)]
 pub struct Work {
   pub status: Status,
   pub entry: Entry,
   pub exec_time: DateTime,
+  pub exec_times: u32,
+  pub running_processes: Vec<Process>,
 }
 
 pub enum EntryIdentifier {
@@ -153,10 +167,11 @@ pub enum SystemUser {
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct Execute {
-  pub env: Option<Vec<String>>,
+  pub env: Option<HashMap<String, String>>,
   pub working_dir: Option<String>,
   pub executable: PathBuf,
   pub user: Option<SystemUser>,
+  pub args: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -166,6 +181,15 @@ pub enum Action {
   None,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub enum DoIfRunning {
+    #[default]
+    StartNew,
+    Stop,
+    Restart,
+    Continue,
+}
+
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Entry {
   pub id: i32,
@@ -173,6 +197,7 @@ pub struct Entry {
   pub action: Action,
   pub logger: Logger,
   pub timer: Timer,
+  pub do_if_running: DoIfRunning,
 }
 
 pub enum OperationType {
@@ -199,4 +224,8 @@ pub enum Operation {
   Detail(EntryIdentifier),
   Help(Option<OperationType>),
   Version,
+}
+
+pub trait CommandHelp {
+    fn cmd_help() -> String;
 }

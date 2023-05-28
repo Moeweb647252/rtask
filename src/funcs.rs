@@ -3,14 +3,17 @@ use crate::utils::*;
 use chrono::TimeZone;
 use chrono::{Datelike, Timelike};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::env;
 use std::error::Error;
+use std::fmt::Display;
 use std::fs::File;
 use std::io::Write;
 use std::ops;
 use std::path::PathBuf;
-use std::process::Output;
+use std::fmt;
 use sysinfo::{SystemExt, UserExt};
+use std::process;
 
 impl Operation {
   pub fn from_args(args: &[String]) -> Result<Operation, Box<dyn Error>> {
@@ -24,8 +27,9 @@ impl Operation {
         let entry = Entry::from_args(
           args,
           Timer::from_args(args),
-          Logger::from_args(args)?,
+          Logger::from_args(args),
           Action::from_args(args),
+          DoIfRunning::from_args(args),
         )?;
         operation = Operation::Add(entry);
       }
@@ -102,13 +106,14 @@ impl Operation {
 }
 
 impl Entry {
-  pub fn new(timer: Timer, logger: Logger, action: Action) -> Self {
+  pub fn new(timer: Timer, logger: Logger, action: Action, do_if_running: DoIfRunning) -> Self {
     Self {
       id: 0,
       name: String::new(),
       action,
       logger,
       timer,
+      do_if_running
     }
   }
   pub fn from_args(
@@ -116,8 +121,9 @@ impl Entry {
     timer: Timer,
     logger: Logger,
     action: Action,
+    do_if_running: DoIfRunning
   ) -> Result<Self, Box<dyn Error>> {
-    let mut entry = Self::new(timer, logger, action);
+    let mut entry = Self::new(timer, logger, action, do_if_running);
     let err = "Invalid argument";
     entry.name = random_name();
     for (index, arg) in args.iter().enumerate() {
@@ -135,7 +141,7 @@ impl Entry {
 }
 
 impl Logger {
-  pub fn from_args(args: &[String]) -> Result<Self, Box<dyn Error>> {
+  pub fn from_args(args: &[String]) -> Self {
     let mut logger = Self::Default;
     for (index, arg) in args.iter().enumerate() {
       match arg.as_str() {
@@ -149,7 +155,7 @@ impl Logger {
         _ => (),
       }
     }
-    Ok(logger)
+    logger
   }
 }
 
@@ -483,9 +489,10 @@ impl Execute {
               Some(data) => data,
               None => continue,
             })
-            .split(',')
-            .map(|s| s.to_string())
-            .collect(),
+            .split_whitespace()
+            .filter_map(|pair| pair.split_once("="))
+            .map(|(a,b)| (a.to_string(), b.to_string()))
+            .collect()
           );
         }
         "--dir" => execute.working_dir = garg(args, index + 1),
@@ -500,8 +507,13 @@ impl Execute {
     }
   }
 
-  pub fn exec(&self) -> Result<(), Box<dyn Error>> {
-    Ok(())
+  pub fn exec(&self) -> Result<u32, Box<dyn Error>> {
+    let child = process::Command::new(self.executable.clone())
+      .args(self.args.clone().unwrap_or(vec![]))
+      .envs(self.env.clone().unwrap_or(HashMap::new()))
+      .current_dir(self.working_dir.clone().unwrap_or("/tmp".into()))
+      .spawn()?;
+    Ok(child.id())
   }
 }
 
@@ -554,16 +566,107 @@ impl SystemUser {
 }
 
 impl Work {
-  pub fn complete(&mut self) -> Result<(), Box<dyn Error>> {
-    self.status = Status::Pending;
-    match self.entry.timer {
-      Timer::Repeat(timer) => {
-        self.exec_time = match self.exec_time + timer {
-          Some(data) => data,
-          None => return,
+  pub fn start(&mut self) -> Result<(), Box<dyn Error>> {
+    match self.entry.action.clone() {
+      Action::Exec(execute) => {
+        execute.exec()?;
+        match self.entry.timer.clone() {
+          Timer::Repeat(timer) => {
+            self.exec_time = match self.exec_time.clone() + timer {
+              Some(data) => data,
+              None => return Err(RtodoError::new("Error: Invalid time").into()),
+            };
+            self.exec_times += 1;
+          }
+          Timer::Once(timer) => {
+            self.exec_times += 1;
+            self.status = Status::Paused
+          } 
+          Timer::ManyTimes(timer, times) => {
+            self.exec_time = match self.exec_time.clone() + timer {
+              Some(data) => data,
+              None => return Err(RtodoError::new("Error: Invalid time").into()),
+            };
+            self.exec_times += 1;
+          }
+          Timer::Never => {
+            return Err(RtodoError::new(format!("Error: Entry with a Never Timer executed! Entry: {}", self.entry.name).as_str()).into())
+          }
         }
+        self.status = Status::Running;
+      }
+      Action::None => (),
+    }
+    Ok(())
+  }
+  pub fn stop(&mut self) -> Result<(), Box<dyn Error>>{
+    match self.entry.action {
+      Action::Exec(_) => {
+        for i in &self.running_processes {
+          i.kill()?;
+        }
+        self.running_processes.clear();
+        self.status = Status::Paused;
+        Ok(())
+      }
+      Action::None => Ok(()),
+    }
+  }
+  pub fn restart(&mut self) -> Result<(), Box<dyn Error>>{
+    self.stop()?;
+    self.start()
+  }
+}
+
+impl Display for RtodoError {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.msg)
+  }
+}
+
+
+impl Error for RtodoError {}
+
+impl RtodoError {
+  pub fn new (msg: &str) -> Self {
+    Self {
+      msg: msg.to_string()
+    }
+  }
+}
+
+impl DoIfRunning {
+  pub fn from_args(args: &[String]) -> Self {
+    let mut do_if_running = Self::default();
+    for arg in args{
+      match arg.as_str() {
+        "--rest-ir" =>  do_if_running = Self::Restart,
+        "--stop-ir" => do_if_running = Self::Stop,
+        "--cont-ir" => do_if_running = Self::Continue,
+        "--stne-ir" => do_if_running = Self::StartNew,
+        _ => ()
       }
     }
+    do_if_running
+  }
+}
+
+impl CommandHelp for DoIfRunning {
+  fn cmd_help() -> String {
+    String::from("--rest-ir: Restart if work is running
+--stop-ir: Stop if work is running
+--cont-ir: Continue if work is running
+--stne-ir: Start new if work is running
+")
+  }
+}
+
+impl Process {
+  pub fn kill(&self) -> Result<(), Box<dyn Error>> {
+    process::Command::new("kill")
+      .arg("-9")
+      .arg(self.pid.to_string())
+      .spawn()?;
     Ok(())
   }
 }
