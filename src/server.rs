@@ -42,7 +42,7 @@ async fn validate_token(data: ReqData, state: RS) -> impl Responder {
   nsucc(200, "Valid token")
 }
 
-pub fn start_server(rtodo: &Arc<RwLock<Rtodo>>) -> std::io::Result<()> {
+pub fn start_server(rtodo: Arc<RwLock<Rtodo>>) -> std::io::Result<()> {
   let rt = Runtime::new().unwrap();
   let addr = rtodo.read().unwrap().config.address.clone();
   rt.block_on(async {

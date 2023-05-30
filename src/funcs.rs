@@ -495,6 +495,14 @@ impl Execute {
             .collect()
           );
         }
+        "--args" => {
+          execute.args = match garg::<String>(args, index+1) {
+            Some(data) => {
+              Some(data.split(' ').map(|s| s.to_string()).collect())
+            }
+            None => None
+          }
+        }
         "--dir" => execute.working_dir = garg(args, index + 1),
         "--username" => execute.user = SystemUser::from_un(garg(args, index + 1)),
         _ => (),

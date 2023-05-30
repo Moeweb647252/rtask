@@ -1,6 +1,7 @@
 use std::env::args;
 use std::fs;
 use std::sync::{RwLock};
+use log::{error, info};
 
 mod daemon;
 mod funcs;
@@ -33,8 +34,15 @@ fn main() {
   };
   let config_content = match fs::read(&path) {
     Ok(content) => content,
-    Err(_err) => {
-      panic!("cannot read config file: {}", path.to_str().unwrap());
+    Err(err) => {
+      error!("Error: cannot read config file: {}, Err: {}", path.to_str().unwrap_or("Unknown"), err);
+      match fs::write(&path, "") {
+        Ok(_) => {
+          info!("Info: auto created default config file.");
+          vec![]
+        }
+        Err(err) => panic!("Error: cannot create config file: {}, Err: {}", path.to_str().unwrap_or("Unknown"), err)
+      }
     }
   };
   let config: Config = match serde_yaml::from_str(&String::from_utf8_lossy(&config_content)) {

@@ -2,6 +2,7 @@ use crate::types::*;
 use rand::Rng;
 use serde::Serialize;
 use std::str::FromStr;
+use p
 
 pub fn generate_token() -> String {
   let mut rng = rand::thread_rng();
@@ -64,4 +65,8 @@ pub fn garg<T: FromStr>(args: &[String], index: usize) -> Option<T> {
 
 pub fn random_name() -> String {
   "Not impled".to_string()
+}
+
+pub fn check_if_process_by_pid_alive (pid: u32) -> bool {
+
 }
