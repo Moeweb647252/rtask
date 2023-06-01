@@ -1,8 +1,9 @@
 use actix_web::web;
 use serde::{Deserialize, Serialize};
 use std::{
+  collections::HashMap,
   path::PathBuf,
-  sync::{Arc, RwLock}, collections::HashMap,
+  sync::{Arc, RwLock},
 };
 
 pub type RS = web::Data<RtodoState>;
@@ -51,11 +52,12 @@ pub struct Config {
   pub token: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub enum Status {
   Error,
   Running,
   Paused,
+  #[default]
   Pending,
 }
 
@@ -106,7 +108,7 @@ pub struct Duration {
 
 #[derive(Serialize, Clone)]
 pub struct Process {
-  pub pid: u32,
+  pub pid: i32,
   pub output_tmp_file: Option<PathBuf>,
 }
 
@@ -183,11 +185,11 @@ pub enum Action {
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub enum DoIfRunning {
-    #[default]
-    StartNew,
-    Stop,
-    Restart,
-    Continue,
+  #[default]
+  StartNew,
+  Stop,
+  Restart,
+  Continue,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -197,6 +199,7 @@ pub struct Entry {
   pub action: Action,
   pub logger: Logger,
   pub timer: Timer,
+  pub status: Status,
   pub do_if_running: DoIfRunning,
 }
 
@@ -227,5 +230,5 @@ pub enum Operation {
 }
 
 pub trait CommandHelp {
-    fn cmd_help() -> String;
+  fn cmd_help() -> String;
 }

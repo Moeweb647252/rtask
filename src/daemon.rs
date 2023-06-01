@@ -1,12 +1,14 @@
 use crate::server::start_server;
 use crate::types::*;
-use log::error;
+use crate::utils::check_if_process_by_pid_alive;
+use log::{error, info};
 use std::error::Error;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time;
 
 pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
+  info!("Info: Starting exectutor");
   loop {
     thread::sleep(time::Duration::from_millis(100));
     let works = &match rtodo_rwl.try_read() {
@@ -41,7 +43,10 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
                 match work_write_guard.start() {
                   Ok(_) => (),
                   Err(err) => {
-                    error!("Error: Failed in start entry {}, Error Info: {}", work_read_guard.entry.name, err);
+                    error!(
+                      "Error: Failed in start entry {}, Error Info: {}",
+                      work_read_guard.entry.name, err
+                    );
                     work_write_guard.status = Status::Error;
                     continue;
                   }
@@ -52,7 +57,10 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
                 match work_write_guard.stop() {
                   Ok(_) => (),
                   Err(err) => {
-                    error!("Error: Failed in stop entry {}, Error Info: {}", work_read_guard.entry.name, err);
+                    error!(
+                      "Error: Failed in stop entry {}, Error Info: {}",
+                      work_read_guard.entry.name, err
+                    );
                     work_write_guard.status = Status::Error;
                     continue;
                   }
@@ -63,7 +71,10 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
                 match work_write_guard.restart() {
                   Ok(_) => (),
                   Err(err) => {
-                    error!("Error: Failed in restart entry {}, Error Info: {}", work_read_guard.entry.name, err);
+                    error!(
+                      "Error: Failed in restart entry {}, Error Info: {}",
+                      work_read_guard.entry.name, err
+                    );
                     work_write_guard.status = Status::Error;
                     continue;
                   }
@@ -84,13 +95,16 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
             match work_write_guard.start() {
               Ok(_) => (),
               Err(err) => {
-                error!("Error: Failed in start entry {}, Error Info: {}", work_read_guard.entry.name, err);
+                error!(
+                  "Error: Failed in start entry {}, Error Info: {}",
+                  work_read_guard.entry.name, err
+                );
                 work_write_guard.status = Status::Error;
                 continue;
               }
             }
           }
-          Status::Error => ()
+          Status::Error => (),
         }
       }
     }
@@ -98,9 +112,10 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
 }
 
 pub fn start_checker(rtodo_rwl: Arc<RwLock<Rtodo>>) {
+  info!("Info: Starting checker");
   loop {
     thread::sleep(time::Duration::from_millis(100));
-    let works = &match rtodo_rwl.read() {
+    let works = &match rtodo_rwl.try_read() {
       Ok(data) => data,
       Err(err) => {
         error!("Error: Internal error: {}", err);
@@ -112,12 +127,23 @@ pub fn start_checker(rtodo_rwl: Arc<RwLock<Rtodo>>) {
       let work_read_guard = match work_rwl.try_read() {
         Ok(data) => data,
         Err(err) => {
+          #[cfg(debug_assertions)]
           error!("Error: Internal error: {}", err);
           continue;
         }
       };
       for (index, thread) in work_read_guard.running_processes.iter().enumerate() {
-        
+        if !check_if_process_by_pid_alive(thread.pid) {
+          match work_rwl.try_write() {
+            Ok(data) => data,
+            Err(err) => {
+              #[cfg(debug_assertions)]
+              error!("Error: Internal error: {}", err);
+              continue;
+            }
+          }
+          .status = Status::Pending;
+        }
       }
     }
   }

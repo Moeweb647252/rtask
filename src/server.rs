@@ -12,7 +12,7 @@ async fn hello() -> impl Responder {
 }
 
 async fn get_entries(data: ReqData, state: RS) -> impl Responder {
-  let rtodo = state.rtodo.read().unwrap();
+  let rtodo = get_rtodo_read_gurad(&state).await;
   if !check_token(&data, &rtodo) {
     return nerr(100, "Invalid token");
   }
@@ -20,7 +20,7 @@ async fn get_entries(data: ReqData, state: RS) -> impl Responder {
 }
 
 async fn add_entries(data: ReqDataT<Entry>, state: RS) -> impl Responder {
-  let rtodo = state.rtodo.read().unwrap();
+  let rtodo = get_rtodo_read_gurad(&state).await;
   if !data.check_token(&rtodo) {
     return nerr(100, "Invalid token");
   }
@@ -35,7 +35,7 @@ async fn add_entries(data: ReqDataT<Entry>, state: RS) -> impl Responder {
 }
 
 async fn validate_token(data: ReqData, state: RS) -> impl Responder {
-  let rtodo = state.rtodo.read().unwrap();
+  let rtodo = get_rtodo_read_gurad(&state).await;
   if !check_token(&data, &rtodo) {
     return nerr(100, "Invalid token");
   }

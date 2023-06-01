@@ -2,18 +2,19 @@ use crate::types::*;
 use crate::utils::*;
 use chrono::TimeZone;
 use chrono::{Datelike, Timelike};
+use log::info;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
+use std::fmt;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::Write;
 use std::ops;
 use std::path::PathBuf;
-use std::fmt;
-use sysinfo::{SystemExt, UserExt};
 use std::process;
+use sysinfo::{SystemExt, UserExt};
 
 impl Operation {
   pub fn from_args(args: &[String]) -> Result<Operation, Box<dyn Error>> {
@@ -30,6 +31,7 @@ impl Operation {
           Logger::from_args(args),
           Action::from_args(args),
           DoIfRunning::from_args(args),
+          Status::from_args(args),
         )?;
         operation = Operation::Add(entry);
       }
@@ -106,14 +108,21 @@ impl Operation {
 }
 
 impl Entry {
-  pub fn new(timer: Timer, logger: Logger, action: Action, do_if_running: DoIfRunning) -> Self {
+  pub fn new(
+    timer: Timer,
+    logger: Logger,
+    action: Action,
+    do_if_running: DoIfRunning,
+    status: Status,
+  ) -> Self {
     Self {
       id: 0,
       name: String::new(),
       action,
       logger,
       timer,
-      do_if_running
+      status,
+      do_if_running,
     }
   }
   pub fn from_args(
@@ -121,9 +130,10 @@ impl Entry {
     timer: Timer,
     logger: Logger,
     action: Action,
-    do_if_running: DoIfRunning
+    do_if_running: DoIfRunning,
+    status: Status,
   ) -> Result<Self, Box<dyn Error>> {
-    let mut entry = Self::new(timer, logger, action, do_if_running);
+    let mut entry = Self::new(timer, logger, action, do_if_running, status);
     let err = "Invalid argument";
     entry.name = random_name();
     for (index, arg) in args.iter().enumerate() {
@@ -195,6 +205,17 @@ impl Rtodo {
 
   pub fn get_token(&self) -> &str {
     self.config.token.as_str()
+  }
+
+  pub fn init_works(&mut self) -> Result<(), Box<dyn Error>> {
+    for entry in self.get_entries() {
+      self.works.push(Work {
+        status: entry.status,
+        entry,
+        exec_time: 
+      })
+    }
+    Ok(())
   }
 }
 
@@ -315,6 +336,11 @@ impl DateTime {
       None
     }
   }
+
+  pub fn from_duration(duration: &Duration) -> Self {
+    
+  }
+
   pub fn one_day() -> Self {
     let now = chrono::Local::now();
     Self {
@@ -491,16 +517,14 @@ impl Execute {
             })
             .split_whitespace()
             .filter_map(|pair| pair.split_once("="))
-            .map(|(a,b)| (a.to_string(), b.to_string()))
-            .collect()
+            .map(|(a, b)| (a.to_string(), b.to_string()))
+            .collect(),
           );
         }
         "--args" => {
-          execute.args = match garg::<String>(args, index+1) {
-            Some(data) => {
-              Some(data.split(' ').map(|s| s.to_string()).collect())
-            }
-            None => None
+          execute.args = match garg::<String>(args, index + 1) {
+            Some(data) => Some(data.split(' ').map(|s| s.to_string()).collect()),
+            None => None,
           }
         }
         "--dir" => execute.working_dir = garg(args, index + 1),
@@ -575,6 +599,7 @@ impl SystemUser {
 
 impl Work {
   pub fn start(&mut self) -> Result<(), Box<dyn Error>> {
+    info!("Info: Starting entry: {}", self.entry.name);
     match self.entry.action.clone() {
       Action::Exec(execute) => {
         execute.exec()?;
@@ -589,7 +614,7 @@ impl Work {
           Timer::Once(timer) => {
             self.exec_times += 1;
             self.status = Status::Paused
-          } 
+          }
           Timer::ManyTimes(timer, times) => {
             self.exec_time = match self.exec_time.clone() + timer {
               Some(data) => data,
@@ -598,16 +623,27 @@ impl Work {
             self.exec_times += 1;
           }
           Timer::Never => {
-            return Err(RtodoError::new(format!("Error: Entry with a Never Timer executed! Entry: {}", self.entry.name).as_str()).into())
+            return Err(
+              RtodoError::new(
+                format!(
+                  "Error: Entry with a Never Timer executed! Entry: {}",
+                  self.entry.name
+                )
+                .as_str(),
+              )
+              .into(),
+            )
           }
         }
         self.status = Status::Running;
       }
       Action::None => (),
     }
+    info!("Info: Started entry: {}", self.entry.name);
     Ok(())
   }
-  pub fn stop(&mut self) -> Result<(), Box<dyn Error>>{
+  pub fn stop(&mut self) -> Result<(), Box<dyn Error>> {
+    info!("Info: Stopping entry: {}", self.entry.name);
     match self.entry.action {
       Action::Exec(_) => {
         for i in &self.running_processes {
@@ -620,7 +656,7 @@ impl Work {
       Action::None => Ok(()),
     }
   }
-  pub fn restart(&mut self) -> Result<(), Box<dyn Error>>{
+  pub fn restart(&mut self) -> Result<(), Box<dyn Error>> {
     self.stop()?;
     self.start()
   }
@@ -632,13 +668,12 @@ impl Display for RtodoError {
   }
 }
 
-
 impl Error for RtodoError {}
 
 impl RtodoError {
-  pub fn new (msg: &str) -> Self {
+  pub fn new(msg: &str) -> Self {
     Self {
-      msg: msg.to_string()
+      msg: msg.to_string(),
     }
   }
 }
@@ -646,13 +681,13 @@ impl RtodoError {
 impl DoIfRunning {
   pub fn from_args(args: &[String]) -> Self {
     let mut do_if_running = Self::default();
-    for arg in args{
+    for arg in args {
       match arg.as_str() {
-        "--rest-ir" =>  do_if_running = Self::Restart,
+        "--rest-ir" => do_if_running = Self::Restart,
         "--stop-ir" => do_if_running = Self::Stop,
         "--cont-ir" => do_if_running = Self::Continue,
         "--stne-ir" => do_if_running = Self::StartNew,
-        _ => ()
+        _ => (),
       }
     }
     do_if_running
@@ -661,11 +696,13 @@ impl DoIfRunning {
 
 impl CommandHelp for DoIfRunning {
   fn cmd_help() -> String {
-    String::from("--rest-ir: Restart if work is running
+    String::from(
+      "--rest-ir: Restart if work is running
 --stop-ir: Stop if work is running
 --cont-ir: Continue if work is running
 --stne-ir: Start new if work is running
-")
+",
+    )
   }
 }
 
@@ -676,5 +713,17 @@ impl Process {
       .arg(self.pid.to_string())
       .spawn()?;
     Ok(())
+  }
+}
+
+impl Status {
+  pub fn from_args(args: &[String]) -> Self {
+    for arg in args {
+      match arg.as_str() {
+        "--paused" => return Self::Paused,
+        _ => (),
+      }
+    }
+    Self::default()
   }
 }

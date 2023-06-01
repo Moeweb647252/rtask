@@ -1,8 +1,11 @@
 use crate::types::*;
+use nix::{sys::signal::kill, unistd::Pid};
 use rand::Rng;
 use serde::Serialize;
-use std::str::FromStr;
-use p
+use std::{
+  str::FromStr,
+  sync::{RwLock, RwLockReadGuard},
+};
 
 pub fn generate_token() -> String {
   let mut rng = rand::thread_rng();
@@ -67,6 +70,19 @@ pub fn random_name() -> String {
   "Not impled".to_string()
 }
 
-pub fn check_if_process_by_pid_alive (pid: u32) -> bool {
+#[cfg(target_family = "unix")]
+pub fn check_if_process_by_pid_alive(pid: i32) -> bool {
+  match kill(Pid::from_raw(pid), None) {
+    Ok(_) => true,
+    Err(_) => false,
+  }
+}
 
+pub async fn get_rtodo_read_gurad(state: &RS) -> RwLockReadGuard<Rtodo> {
+  loop {
+    match state.rtodo.try_read() {
+      Ok(data) => break data,
+      Err(_) => tokio::time::sleep(tokio::time::Duration::from_millis(100)).await,
+    }
+  }
 }
