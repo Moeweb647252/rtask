@@ -212,7 +212,7 @@ impl Rtodo {
       self.works.push(Work {
         status: entry.status,
         entry,
-        exec_time: 
+        exec_time: DateTime::from_duration()
       })
     }
     Ok(())
@@ -338,9 +338,22 @@ impl DateTime {
   }
 
   pub fn from_duration(duration: &Duration) -> Self {
-    
+    Self::now() + duration
   }
 
+  pub fn now() -> Self {
+    let now = chrono::Local::now();
+    Self {
+      sec: now.second(),
+      min: now.minute(),
+      hour: now.hour(),
+      day: now.day(),
+      month: now.month(),
+      year: now.year(),
+      timestamp: now.timestamp(),
+      time_zone: crate::types::TimeZone::Local,
+    }
+  }
   pub fn one_day() -> Self {
     let now = chrono::Local::now();
     Self {
