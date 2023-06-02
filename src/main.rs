@@ -62,6 +62,7 @@ fn main() {
     config,
     cur_entry_id,
   };
+  rtodo.init_works().unwrap();
   match opt {
     Operation::Add(entry) => {
       let name = entry.name.clone();

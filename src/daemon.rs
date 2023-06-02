@@ -27,19 +27,73 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
           continue;
         }
       };
-      if work_read_guard.exec_time.is_up() {
-        match work_read_guard.status {
-          Status::Running => {
-            let mut work_write_guard = match work_rwl.write() {
-              Ok(data) => data,
-              Err(err) => {
-                error!("Error: Internal error: {}", err);
-                continue;
+      match &work_read_guard.entry.trigger {
+        Trigger::Timer(_) => {
+          if work_read_guard.trigger_state.exec_time.clone().unwrap().is_up() {
+            match work_read_guard.status {
+              Status::Running => {
+                let mut work_write_guard = match work_rwl.write() {
+                  Ok(data) => data,
+                  Err(err) => {
+                    error!("Error: Internal error: {}", err);
+                    continue;
+                  }
+                };
+                match work_read_guard.entry.do_if_running {
+                  DoIfRunning::Continue => (),
+                  DoIfRunning::StartNew => {
+                    match work_write_guard.start() {
+                      Ok(_) => (),
+                      Err(err) => {
+                        error!(
+                          "Error: Failed in start entry {}, Error Info: {}",
+                          work_read_guard.entry.name, err
+                        );
+                        work_write_guard.status = Status::Error;
+                        continue;
+                      }
+                    }
+                    ()
+                  }
+                  DoIfRunning::Stop => {
+                    match work_write_guard.stop() {
+                      Ok(_) => (),
+                      Err(err) => {
+                        error!(
+                          "Error: Failed in stop entry {}, Error Info: {}",
+                          work_read_guard.entry.name, err
+                        );
+                        work_write_guard.status = Status::Error;
+                        continue;
+                      }
+                    }
+                    ()
+                  }
+                  DoIfRunning::Restart => {
+                    match work_write_guard.restart() {
+                      Ok(_) => (),
+                      Err(err) => {
+                        error!(
+                          "Error: Failed in restart entry {}, Error Info: {}",
+                          work_read_guard.entry.name, err
+                        );
+                        work_write_guard.status = Status::Error;
+                        continue;
+                      }
+                    }
+                    ()
+                  }
+                }
               }
-            };
-            match work_read_guard.entry.do_if_running {
-              DoIfRunning::Continue => (),
-              DoIfRunning::StartNew => {
+              Status::Paused => (),
+              Status::Pending => {
+                let mut work_write_guard = match work_rwl.write() {
+                  Ok(data) => data,
+                  Err(err) => {
+                    error!("Error: Internal error: {}", err);
+                    continue;
+                  }
+                };
                 match work_write_guard.start() {
                   Ok(_) => (),
                   Err(err) => {
@@ -51,61 +105,12 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
                     continue;
                   }
                 }
-                ()
               }
-              DoIfRunning::Stop => {
-                match work_write_guard.stop() {
-                  Ok(_) => (),
-                  Err(err) => {
-                    error!(
-                      "Error: Failed in stop entry {}, Error Info: {}",
-                      work_read_guard.entry.name, err
-                    );
-                    work_write_guard.status = Status::Error;
-                    continue;
-                  }
-                }
-                ()
-              }
-              DoIfRunning::Restart => {
-                match work_write_guard.restart() {
-                  Ok(_) => (),
-                  Err(err) => {
-                    error!(
-                      "Error: Failed in restart entry {}, Error Info: {}",
-                      work_read_guard.entry.name, err
-                    );
-                    work_write_guard.status = Status::Error;
-                    continue;
-                  }
-                }
-                ()
-              }
+              Status::Error => (),
             }
           }
-          Status::Paused => (),
-          Status::Pending => {
-            let mut work_write_guard = match work_rwl.write() {
-              Ok(data) => data,
-              Err(err) => {
-                error!("Error: Internal error: {}", err);
-                continue;
-              }
-            };
-            match work_write_guard.start() {
-              Ok(_) => (),
-              Err(err) => {
-                error!(
-                  "Error: Failed in start entry {}, Error Info: {}",
-                  work_read_guard.entry.name, err
-                );
-                work_write_guard.status = Status::Error;
-                continue;
-              }
-            }
-          }
-          Status::Error => (),
         }
+        Trigger::None => ()
       }
     }
   }

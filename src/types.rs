@@ -52,7 +52,7 @@ pub struct Config {
   pub token: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default, Copy)]
 pub enum Status {
   Error,
   Running,
@@ -116,8 +116,7 @@ pub struct Process {
 pub struct Work {
   pub status: Status,
   pub entry: Entry,
-  pub exec_time: DateTime,
-  pub exec_times: u32,
+  pub trigger_state: TriggerState,
   pub running_processes: Vec<Process>,
 }
 
@@ -198,7 +197,7 @@ pub struct Entry {
   pub name: String,
   pub action: Action,
   pub logger: Logger,
-  pub timer: Timer,
+  pub trigger: Trigger,
   pub status: Status,
   pub do_if_running: DoIfRunning,
 }
@@ -231,4 +230,17 @@ pub enum Operation {
 
 pub trait CommandHelp {
   fn cmd_help() -> String;
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub enum Trigger {
+  Timer(Timer),
+  #[default]
+  None
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct TriggerState {
+  pub exec_time: Option<DateTime>,
+  pub exec_times: u32,
 }

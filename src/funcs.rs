@@ -2,7 +2,7 @@ use crate::types::*;
 use crate::utils::*;
 use chrono::TimeZone;
 use chrono::{Datelike, Timelike};
-use log::info;
+use log::{info, error};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
@@ -14,6 +14,7 @@ use std::io::Write;
 use std::ops;
 use std::path::PathBuf;
 use std::process;
+use std::sync::RwLock;
 use sysinfo::{SystemExt, UserExt};
 
 impl Operation {
@@ -27,7 +28,7 @@ impl Operation {
         }
         let entry = Entry::from_args(
           args,
-          Timer::from_args(args),
+          Trigger::from_args(args),
           Logger::from_args(args),
           Action::from_args(args),
           DoIfRunning::from_args(args),
@@ -109,7 +110,7 @@ impl Operation {
 
 impl Entry {
   pub fn new(
-    timer: Timer,
+    trigger: Trigger,
     logger: Logger,
     action: Action,
     do_if_running: DoIfRunning,
@@ -120,20 +121,20 @@ impl Entry {
       name: String::new(),
       action,
       logger,
-      timer,
+      trigger,
       status,
       do_if_running,
     }
   }
   pub fn from_args(
     args: &[String],
-    timer: Timer,
+    trigger: Trigger,
     logger: Logger,
     action: Action,
     do_if_running: DoIfRunning,
     status: Status,
   ) -> Result<Self, Box<dyn Error>> {
-    let mut entry = Self::new(timer, logger, action, do_if_running, status);
+    let mut entry = Self::new(trigger, logger, action, do_if_running, status);
     let err = "Invalid argument";
     entry.name = random_name();
     for (index, arg) in args.iter().enumerate() {
@@ -209,11 +210,12 @@ impl Rtodo {
 
   pub fn init_works(&mut self) -> Result<(), Box<dyn Error>> {
     for entry in self.get_entries() {
-      self.works.push(Work {
+      self.works.push(RwLock::new(Work {
         status: entry.status,
-        entry,
-        exec_time: DateTime::from_duration()
-      })
+        entry: entry.clone(),
+        trigger_state: TriggerState::from_entry(&entry),
+        running_processes: Vec::new(),
+      }))
     }
     Ok(())
   }
@@ -337,8 +339,8 @@ impl DateTime {
     }
   }
 
-  pub fn from_duration(duration: &Duration) -> Self {
-    Self::now() + duration
+  pub fn from_duration(duration: &Duration) -> Option<Self>{
+    Self::now() + duration.clone()
   }
 
   pub fn now() -> Self {
@@ -479,7 +481,7 @@ impl Duration {
 }
 
 impl Timer {
-  fn from_args(args: &[String]) -> Self {
+  fn from_args(args: &[String]) -> Option<Self> {
     let mut timer = Self::default();
     let mut hasarg = false;
     for arg in args.iter() {
@@ -498,13 +500,16 @@ impl Timer {
             None => DateTime::one_day(),
           })
         }
+        "--never" => {
+          timer = Self::Never
+        }
         _ => (),
       }
     }
     if hasarg {
-      timer
+      Some(timer)
     } else {
-      Self::Never
+      None
     }
   }
 }
@@ -613,39 +618,54 @@ impl SystemUser {
 impl Work {
   pub fn start(&mut self) -> Result<(), Box<dyn Error>> {
     info!("Info: Starting entry: {}", self.entry.name);
-    match self.entry.action.clone() {
+    match &self.entry.action {
       Action::Exec(execute) => {
-        execute.exec()?;
-        match self.entry.timer.clone() {
-          Timer::Repeat(timer) => {
-            self.exec_time = match self.exec_time.clone() + timer {
-              Some(data) => data,
-              None => return Err(RtodoError::new("Error: Invalid time").into()),
-            };
-            self.exec_times += 1;
-          }
-          Timer::Once(timer) => {
-            self.exec_times += 1;
-            self.status = Status::Paused
-          }
-          Timer::ManyTimes(timer, times) => {
-            self.exec_time = match self.exec_time.clone() + timer {
-              Some(data) => data,
-              None => return Err(RtodoError::new("Error: Invalid time").into()),
-            };
-            self.exec_times += 1;
-          }
-          Timer::Never => {
-            return Err(
-              RtodoError::new(
-                format!(
-                  "Error: Entry with a Never Timer executed! Entry: {}",
-                  self.entry.name
+        match self.entry.trigger.clone() {
+          Trigger::Timer(timer) => {
+            match timer {
+              Timer::Repeat(timer) => {
+                self.trigger_state.exec_time = match self.trigger_state.exec_time.clone().unwrap() + timer {
+                  Some(data) => Some(data),
+                  None => return Err(RtodoError::new("Error: Invalid time").into()),
+                };
+                self.trigger_state.exec_times += 1;
+                execute.exec()?;
+              }
+              Timer::Once(timer) => {
+                if self.trigger_state.exec_times >= 1 {
+                  return Err(RtodoError::new(format!("Error: Entry {} with Once timer executed twice!", self.entry.name).as_str()).into())
+                }
+                self.trigger_state.exec_times += 1;
+                self.status = Status::Paused;
+                execute.exec()?;
+              }
+              Timer::ManyTimes(timer, times) => {
+                if self.trigger_state.exec_times >= times {
+                  return Err(RtodoError::new(format!("Error: Entry {} with ManyTimes timer executed exceeded times!", self.entry.name).as_str()).into())
+                }
+                self.trigger_state.exec_time = match self.trigger_state.exec_time.clone().unwrap() + timer {
+                  Some(data) => Some(data),
+                  None => return Err(RtodoError::new("Error: Invalid time").into()),
+                };
+                self.trigger_state.exec_times += 1;
+                execute.exec()?;
+              }
+              Timer::Never => {
+                return Err(
+                  RtodoError::new(
+                    format!(
+                      "Error: Entry with a Never Timer executed! Entry: {}",
+                      self.entry.name
+                    )
+                    .as_str(),
+                  )
+                  .into(),
                 )
-                .as_str(),
-              )
-              .into(),
-            )
+              }
+            }
+          }
+          Trigger::None => {
+            error!("Error: Entry {} executed without trigger!", self.entry.name)
           }
         }
         self.status = Status::Running;
@@ -738,5 +758,58 @@ impl Status {
       }
     }
     Self::default()
+  }
+}
+
+impl Trigger {
+  pub fn from_args(args: &[String]) -> Self{
+    if let Some(timer) = Timer::from_args(args) {
+      Self::Timer(timer)
+    } else {
+      Self::None
+    }
+  }
+}
+
+impl TriggerState {
+  pub fn from_entry(entry: &Entry) -> Self {
+    match &entry.trigger {
+      Trigger::Timer(timer) => {
+        match timer {
+          Timer::Repeat(timer) => {
+            Self {
+              exec_time: match DateTime::from_duration(&timer) {
+                Some(data) => Some(data),
+                None => {
+                  error!("Error: Repeat timer construct failed from duration at entry {}", entry.name);
+                  None
+                }
+              },
+              exec_times: 0
+            }
+          }
+          Timer::ManyTimes(timer, _) => {
+            Self {
+              exec_time: match DateTime::from_duration(&timer) {
+                Some(data) => Some(data),
+                None => {
+                  error!("Error: Repeat timer construct failed from duration at entry {}", entry.name);
+                  None
+                }
+              },
+              exec_times: 0
+            }
+          }
+          Timer::Once(timer) => {
+            Self {
+              exec_time: Some(timer.clone()),
+              exec_times: 0
+            }
+          }
+          Timer::Never => Self::default()
+        }
+      }
+      Trigger::None => Self::default()
+    }
   }
 }
