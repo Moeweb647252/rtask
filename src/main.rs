@@ -39,13 +39,13 @@ fn main() {
       match fs::write(&path, "") {
         Ok(_) => {
           info!("Info: auto created default config file.");
-          vec![]
+          serde_json::to_string(&Config::default()).unwrap().into()
         }
         Err(err) => panic!("Error: cannot create config file: {}, Err: {}", path.to_str().unwrap_or("Unknown"), err)
       }
     }
   };
-  let config: Config = match serde_yaml::from_str(&String::from_utf8_lossy(&config_content)) {
+  let config: Config = match serde_json::from_str(&String::from_utf8_lossy(&config_content)) {
     Ok(config) => config,
     Err(err) => {
       if err.to_string().starts_with("missing field") {

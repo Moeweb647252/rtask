@@ -27,6 +27,7 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
           continue;
         }
       };
+      print!("{}", work_read_guard.entry.name);
       match &work_read_guard.entry.trigger {
         Trigger::Timer(_) => {
           if work_read_guard.trigger_state.exec_time.clone().unwrap().is_up() {

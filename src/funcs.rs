@@ -195,7 +195,7 @@ impl Rtodo {
 
   pub fn write_conf(&self) -> Result<(), Box<dyn Error>> {
     let mut file = File::create(&self.conf_path)?;
-    let content = serde_yaml::to_string(&self.config)?;
+    let content = serde_json::to_string(&self.config)?;
     file.write_all(content.as_bytes())?;
     Ok(())
   }
