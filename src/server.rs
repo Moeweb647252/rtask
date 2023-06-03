@@ -3,9 +3,11 @@ use std::sync::{Arc, RwLock};
 use crate::types::*;
 use crate::utils::*;
 
+
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer, Responder};
 use tokio::runtime::Runtime;
+use log::info;
 
 async fn hello() -> impl Responder {
   nsucc(200, "Hello world")
@@ -24,7 +26,7 @@ async fn add_entries(data: ReqDataT<Entry>, state: RS) -> impl Responder {
   if !data.check_token(&rtodo) {
     return nerr(100, "Invalid token");
   }
-  let mut rtodo = state.rtodo.write().unwrap();
+  let mut rtodo = get_rtodo_write_gurad(&state).await;
   rtodo.add_entry(match &data.data {
     Some(d) => d.clone(),
     None => {

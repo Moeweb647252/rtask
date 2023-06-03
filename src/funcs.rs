@@ -2,7 +2,7 @@ use crate::types::*;
 use crate::utils::*;
 use chrono::TimeZone;
 use chrono::{Datelike, Timelike};
-use log::{info, error};
+use log::{error, info};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
@@ -251,12 +251,14 @@ impl DateTime {
     min: u32,
     sec: u32,
   ) -> Option<Self> {
-    let new = match chrono::Local
-      .with_ymd_and_hms(year, month, day, hour, min, sec)
-      .single()
-    {
+    let new = chrono::Local.with_ymd_and_hms(year, month, day, hour, min, sec);
+    let new = match new.single() {
       Some(data) => data,
-      None => return None,
+      None => {
+        error!("chrono::Local.with_ymd_and_hms::single returns None!");
+        return None
+      }
+        ,
     };
     Some(Self {
       sec: new.second(),
@@ -339,7 +341,7 @@ impl DateTime {
     }
   }
 
-  pub fn from_duration(duration: &Duration) -> Option<Self>{
+  pub fn from_duration(duration: &Duration) -> Option<Self> {
     Self::now() + duration.clone()
   }
 
@@ -500,9 +502,7 @@ impl Timer {
             None => DateTime::one_day(),
           })
         }
-        "--never" => {
-          timer = Self::Never
-        }
+        "--never" => timer = Self::Never,
         _ => (),
       }
     }
@@ -621,49 +621,67 @@ impl Work {
     match &self.entry.action {
       Action::Exec(execute) => {
         match self.entry.trigger.clone() {
-          Trigger::Timer(timer) => {
-            match timer {
-              Timer::Repeat(timer) => {
-                self.trigger_state.exec_time = match self.trigger_state.exec_time.clone().unwrap() + timer {
+          Trigger::Timer(timer) => match timer {
+            Timer::Repeat(timer) => {
+              self.trigger_state.exec_time =
+                match self.trigger_state.exec_time.clone().unwrap() + timer {
                   Some(data) => Some(data),
                   None => return Err(RtodoError::new("Error: Invalid time").into()),
                 };
-                self.trigger_state.exec_times += 1;
-                execute.exec()?;
-              }
-              Timer::Once(timer) => {
-                if self.trigger_state.exec_times >= 1 {
-                  return Err(RtodoError::new(format!("Error: Entry {} with Once timer executed twice!", self.entry.name).as_str()).into())
-                }
-                self.trigger_state.exec_times += 1;
-                self.status = Status::Paused;
-                execute.exec()?;
-              }
-              Timer::ManyTimes(timer, times) => {
-                if self.trigger_state.exec_times >= times {
-                  return Err(RtodoError::new(format!("Error: Entry {} with ManyTimes timer executed exceeded times!", self.entry.name).as_str()).into())
-                }
-                self.trigger_state.exec_time = match self.trigger_state.exec_time.clone().unwrap() + timer {
-                  Some(data) => Some(data),
-                  None => return Err(RtodoError::new("Error: Invalid time").into()),
-                };
-                self.trigger_state.exec_times += 1;
-                execute.exec()?;
-              }
-              Timer::Never => {
+              self.trigger_state.exec_times += 1;
+              execute.exec()?;
+            }
+            Timer::Once(_) => {
+              if self.trigger_state.exec_times >= 1 {
                 return Err(
                   RtodoError::new(
                     format!(
-                      "Error: Entry with a Never Timer executed! Entry: {}",
+                      "Error: Entry {} with Once timer executed twice!",
                       self.entry.name
                     )
                     .as_str(),
                   )
                   .into(),
-                )
+                );
               }
+              self.trigger_state.exec_times += 1;
+              self.status = Status::Paused;
+              execute.exec()?;
             }
-          }
+            Timer::ManyTimes(timer, times) => {
+              if self.trigger_state.exec_times >= times {
+                return Err(
+                  RtodoError::new(
+                    format!(
+                      "Error: Entry {} with ManyTimes timer executed exceeded times!",
+                      self.entry.name
+                    )
+                    .as_str(),
+                  )
+                  .into(),
+                );
+              }
+              self.trigger_state.exec_time =
+                match self.trigger_state.exec_time.clone().unwrap() + timer {
+                  Some(data) => Some(data),
+                  None => return Err(RtodoError::new("Error: Invalid time").into()),
+                };
+              self.trigger_state.exec_times += 1;
+              execute.exec()?;
+            }
+            Timer::Never => {
+              return Err(
+                RtodoError::new(
+                  format!(
+                    "Error: Entry with a Never Timer executed! Entry: {}",
+                    self.entry.name
+                  )
+                  .as_str(),
+                )
+                .into(),
+              )
+            }
+          },
           Trigger::None => {
             error!("Error: Entry {} executed without trigger!", self.entry.name)
           }
@@ -762,7 +780,7 @@ impl Status {
 }
 
 impl Trigger {
-  pub fn from_args(args: &[String]) -> Self{
+  pub fn from_args(args: &[String]) -> Self {
     if let Some(timer) = Timer::from_args(args) {
       Self::Timer(timer)
     } else {
@@ -774,42 +792,40 @@ impl Trigger {
 impl TriggerState {
   pub fn from_entry(entry: &Entry) -> Self {
     match &entry.trigger {
-      Trigger::Timer(timer) => {
-        match timer {
-          Timer::Repeat(timer) => {
-            Self {
-              exec_time: match DateTime::from_duration(&timer) {
-                Some(data) => Some(data),
-                None => {
-                  error!("Error: Repeat timer construct failed from duration at entry {}", entry.name);
-                  None
-                }
-              },
-              exec_times: 0
+      Trigger::Timer(timer) => match timer {
+        Timer::Repeat(timer) => Self {
+          exec_time: match DateTime::from_duration(&timer) {
+            Some(data) => Some(data),
+            None => {
+              error!(
+                "Error: Repeat timer construct failed from duration at entry {}",
+                entry.name
+              );
+              None
             }
-          }
-          Timer::ManyTimes(timer, _) => {
-            Self {
-              exec_time: match DateTime::from_duration(&timer) {
-                Some(data) => Some(data),
-                None => {
-                  error!("Error: Repeat timer construct failed from duration at entry {}", entry.name);
-                  None
-                }
-              },
-              exec_times: 0
+          },
+          exec_times: 0,
+        },
+        Timer::ManyTimes(timer, _) => Self {
+          exec_time: match DateTime::from_duration(&timer) {
+            Some(data) => Some(data),
+            None => {
+              error!(
+                "Error: Repeat timer construct failed from duration at entry {}",
+                entry.name
+              );
+              None
             }
-          }
-          Timer::Once(timer) => {
-            Self {
-              exec_time: Some(timer.clone()),
-              exec_times: 0
-            }
-          }
-          Timer::Never => Self::default()
-        }
-      }
-      Trigger::None => Self::default()
+          },
+          exec_times: 0,
+        },
+        Timer::Once(timer) => Self {
+          exec_time: Some(timer.clone()),
+          exec_times: 0,
+        },
+        Timer::Never => Self::default(),
+      },
+      Trigger::None => Self::default(),
     }
   }
 }

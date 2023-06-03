@@ -4,8 +4,9 @@ use rand::Rng;
 use serde::Serialize;
 use std::{
   str::FromStr,
-  sync::{RwLock, RwLockReadGuard},
+  sync::{RwLockReadGuard, RwLockWriteGuard},
 };
+use log::info;
 
 pub fn generate_token() -> String {
   let mut rng = rand::thread_rng();
@@ -47,7 +48,7 @@ pub fn nerr(code: i32, msg: &str) -> String {
 
 pub fn nsucc<T: Serialize>(code: i32, data: T) -> String {
   let succ = Succ::new(code, data);
-  serde_json::to_string(&succ).unwrap()
+  serde_json::to_string_pretty(&succ).unwrap()
 }
 
 pub fn garg<T: FromStr>(args: &[String], index: usize) -> Option<T> {
@@ -82,6 +83,19 @@ pub async fn get_rtodo_read_gurad(state: &RS) -> RwLockReadGuard<Rtodo> {
   loop {
     match state.rtodo.try_read() {
       Ok(data) => break data,
+      Err(_) => tokio::time::sleep(tokio::time::Duration::from_millis(100)).await,
+    }
+  }
+}
+
+pub async fn get_rtodo_write_gurad(state: &RS) -> RwLockWriteGuard<Rtodo> {
+  loop {
+    match state.rtodo.try_write() {
+      Ok(data) => {
+      #[cfg(debug_assertions)]
+      info!("Info: got write lock of works at line:{}, file: {}", line!(), file!());
+      break data
+    },
       Err(_) => tokio::time::sleep(tokio::time::Duration::from_millis(100)).await,
     }
   }

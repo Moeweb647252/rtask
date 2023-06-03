@@ -39,7 +39,7 @@ fn main() {
       match fs::write(&path, "") {
         Ok(_) => {
           info!("Info: auto created default config file.");
-          serde_json::to_string(&Config::default()).unwrap().into()
+          serde_json::to_string_pretty(&Config::default()).unwrap().into()
         }
         Err(err) => panic!("Error: cannot create config file: {}, Err: {}", path.to_str().unwrap_or("Unknown"), err)
       }

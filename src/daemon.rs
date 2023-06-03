@@ -1,8 +1,10 @@
 use crate::server::start_server;
 use crate::types::*;
 use crate::utils::check_if_process_by_pid_alive;
+use ctrlc;
 use log::{error, info};
 use std::error::Error;
+use std::process::exit;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time;
@@ -11,37 +13,47 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
   info!("Info: Starting exectutor");
   loop {
     thread::sleep(time::Duration::from_millis(100));
-    let works = &match rtodo_rwl.try_read() {
+    let works = {&match rtodo_rwl.try_read() {
       Ok(data) => data,
       Err(err) => {
-        error!("Error: Internal error: {}", err);
+        error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
         continue;
       }
     }
-    .works;
+    .works};
     for work_rwl in works.iter() {
-      let work_read_guard = match work_rwl.try_read() {
+      let work = {match work_rwl.try_read() {
         Ok(data) => data,
         Err(err) => {
-          error!("Error: Internal error: {}", err);
+          error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
           continue;
         }
-      };
-      #[cfg(debug_assertions)]
-      print!("{}", work_read_guard.entry.name);
-      match &work_read_guard.entry.trigger {
+      }.clone()};
+      //#[cfg(debug_assertions)]
+      //print!("{}", work_write_guard.entry.name);
+      match &work.entry.trigger {
         Trigger::Timer(_) => {
-          if work_read_guard.trigger_state.exec_time.clone().unwrap().is_up() {
-            match work_read_guard.status {
+          if work
+            .trigger_state
+            .exec_time
+            .clone()
+            .unwrap()
+            .is_up()
+          {
+            match work.status {
               Status::Running => {
-                let mut work_write_guard = match work_rwl.write() {
-                  Ok(data) => data,
+                let mut work_write_guard = match work_rwl.try_write() {
+                  Ok(data) => {
+                    #[cfg(debug_assertions)]
+                    info!("Info: got write lock of works at line:{}, file: {}", line!(), file!());
+                    data
+                  },
                   Err(err) => {
-                    error!("Error: Internal error: {}", err);
+                    error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
                     continue;
                   }
                 };
-                match work_read_guard.entry.do_if_running {
+                match work_write_guard.entry.do_if_running {
                   DoIfRunning::Continue => (),
                   DoIfRunning::StartNew => {
                     match work_write_guard.start() {
@@ -49,7 +61,7 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
                       Err(err) => {
                         error!(
                           "Error: Failed in start entry {}, Error Info: {}",
-                          work_read_guard.entry.name, err
+                          work_write_guard.entry.name, err
                         );
                         work_write_guard.status = Status::Error;
                         continue;
@@ -63,7 +75,7 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
                       Err(err) => {
                         error!(
                           "Error: Failed in stop entry {}, Error Info: {}",
-                          work_read_guard.entry.name, err
+                          work_write_guard.entry.name, err
                         );
                         work_write_guard.status = Status::Error;
                         continue;
@@ -77,7 +89,7 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
                       Err(err) => {
                         error!(
                           "Error: Failed in restart entry {}, Error Info: {}",
-                          work_read_guard.entry.name, err
+                          work_write_guard.entry.name, err
                         );
                         work_write_guard.status = Status::Error;
                         continue;
@@ -89,10 +101,14 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
               }
               Status::Paused => (),
               Status::Pending => {
-                let mut work_write_guard = match work_rwl.write() {
-                  Ok(data) => data,
+                let mut work_write_guard = match work_rwl.try_write() {
+                  Ok(data) => {
+                    #[cfg(debug_assertions)]
+                    info!("Info: got write lock of works at line:{}, file: {}", line!(), file!());
+                    data
+                  },
                   Err(err) => {
-                    error!("Error: Internal error: {}", err);
+                    error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
                     continue;
                   }
                 };
@@ -101,7 +117,7 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
                   Err(err) => {
                     error!(
                       "Error: Failed in start entry {}, Error Info: {}",
-                      work_read_guard.entry.name, err
+                      work_write_guard.entry.name, err
                     );
                     work_write_guard.status = Status::Error;
                     continue;
@@ -112,7 +128,7 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
             }
           }
         }
-        Trigger::None => ()
+        Trigger::None => (),
       }
     }
   }
@@ -122,30 +138,34 @@ pub fn start_checker(rtodo_rwl: Arc<RwLock<Rtodo>>) {
   info!("Info: Starting checker");
   loop {
     thread::sleep(time::Duration::from_millis(100));
-    let works = &match rtodo_rwl.try_read() {
+    let works = {&match rtodo_rwl.try_read() {
       Ok(data) => data,
       Err(err) => {
-        error!("Error: Internal error: {}", err);
+        error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
         continue;
       }
     }
-    .works;
+    .works};
     for work_rwl in works.iter() {
-      let work_read_guard = match work_rwl.try_read() {
+      let work = {match work_rwl.try_read() {
         Ok(data) => data,
         Err(err) => {
           #[cfg(debug_assertions)]
-          error!("Error: Internal error: {}", err);
+          error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
           continue;
         }
-      };
-      for (index, thread) in work_read_guard.running_processes.iter().enumerate() {
+      }.clone()};
+      for (_, thread) in work.running_processes.iter().enumerate() {
         if !check_if_process_by_pid_alive(thread.pid) {
           match work_rwl.try_write() {
-            Ok(data) => data,
+            Ok(data) => {
+              #[cfg(debug_assertions)]
+              info!("Info: got write lock of works at line:{}, file: {}", line!(), file!());
+              data
+            },
             Err(err) => {
               #[cfg(debug_assertions)]
-              error!("Error: Internal error: {}", err);
+              error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
               continue;
             }
           }
@@ -157,6 +177,7 @@ pub fn start_checker(rtodo_rwl: Arc<RwLock<Rtodo>>) {
 }
 
 pub fn start_daemon(rtodo_rwl: RwLock<Rtodo>) -> Result<(), Box<dyn Error>> {
+  ctrlc::set_handler(|| exit(0)).unwrap();
   let rtodo_rwl = Arc::new(rtodo_rwl);
   let rtodo_rwl_move = rtodo_rwl.clone();
   let server_thread = thread::spawn(move || start_server(rtodo_rwl_move));
