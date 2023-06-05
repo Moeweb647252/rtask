@@ -11,6 +11,14 @@ async fn hello() -> impl Responder {
   nsucc(200, "Hello world")
 }
 
+async fn validate_token(data: ReqData, state: RS) -> impl Responder {
+  let rtodo = get_rtodo_read_gurad(&state).await;
+  if !check_token(&data, &rtodo) {
+    return nerr(100, "Invalid token");
+  }
+  nsucc(200, "Valid token")
+}
+
 async fn get_entries(data: ReqData, state: RS) -> impl Responder {
   let rtodo = get_rtodo_read_gurad(&state).await;
   if !check_token(&data, &rtodo) {
@@ -30,7 +38,12 @@ async fn add_entries(data: ReqDataT<Vec<Entry>>, state: RS) -> impl Responder {
       return nerr(100, "Invalid data");
     }
   } {
-    rtodo.add_entry(entry);
+    match rtodo.add_entry(entry) {
+      Ok(_) => {}
+      Err(e) => {
+        return nerr(100, &format!("Failed to add entry: {}", e));
+      }
+    };
   }
   nsucc(200, "succeed")
 }
@@ -40,15 +53,47 @@ async fn delete_entries(data: ReqDataT<Vec<EntryIdentifier>>, state: RS) -> impl
   if !data.check_token(&rtodo) {
     return nerr(100, "Invalid token");
   }
+  for identifier in match &data.data {
+    Some(d) => d,
+    None => {
+      return nerr(100, "Invalid data");
+    }
+  } {
+    match rtodo.delete_entry(identifier) {
+      Ok(_) => {}
+      Err(e) => {
+        return nerr(100, &format!("Failed to delete entry: {}", e));
+      }
+    };
+  }
   nsucc(200, "succeed")
 }
 
-async fn validate_token(data: ReqData, state: RS) -> impl Responder {
+async fn get_works(data: ReqData, state: RS) -> impl Responder {
   let rtodo = get_rtodo_read_gurad(&state).await;
   if !check_token(&data, &rtodo) {
     return nerr(100, "Invalid token");
   }
-  nsucc(200, "Valid token")
+  nsucc(200, &rtodo.works)
+}
+
+async fn edit_entry(data: ReqDataT<Entry>, state: RS) -> impl Responder {
+  let mut rtodo = get_rtodo_write_gurad(&state).await;
+  if !data.check_token(&rtodo) {
+    return nerr(100, "Invalid token");
+  }
+  match &data.data {
+    Some(d) => match rtodo.edit_entry(d) {
+      Ok(_) => {}
+      Err(e) => {
+        return nerr(100, &format!("Failed to edit entry: {}", e));
+      }
+    },
+    None => {
+      return nerr(100, "Invalid data");
+    }
+  };
+  nsucc(200, "succeed")
 }
 
 pub fn start_server(rtodo: Arc<RwLock<Rtodo>>) -> std::io::Result<()> {
@@ -71,8 +116,10 @@ pub fn start_server(rtodo: Arc<RwLock<Rtodo>>) -> std::io::Result<()> {
               web::get().to(|| async { String::from("Hello, rtodo!") }),
             )
             .route("/getEntries", web::post().to(get_entries))
+            .route("/getWorks", web::post().to(get_works))
             .route("/validateToken", web::post().to(validate_token))
-            .route("/addEntry", web::post().to(add_entries)),
+            .route("/addEntries", web::post().to(add_entries))
+            .route("/deleteEntries", web::post().to(delete_entries)),
         )
         .service(web::resource("/").route(web::get().to(hello)))
     })

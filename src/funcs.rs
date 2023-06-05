@@ -21,7 +21,7 @@ use sysinfo::{SystemExt, UserExt};
 impl Operation {
   pub fn from_args(args: &[String]) -> Result<Operation, Box<dyn Error>> {
     let mut operation: Operation = Operation::Help(None);
-    let op_str = args[1].clone();
+    let op_str = &args[1];
     match op_str.as_str() {
       "add" => {
         if check_if_help_in_args(args) {
@@ -122,11 +122,7 @@ impl Operation {
 
   pub fn handle(&mut self, mut rtodo: Rtodo) {
     match self {
-      Operation::Add(entry) => {
-        let name = entry.name.clone();
-        rtodo.add_entry(entry.clone());
-        print!("Succussfully added {}", name);
-      }
+      Operation::Add(entry) => {}
       Operation::StartDaemon() => match daemon::start_daemon(RwLock::new(rtodo)) {
         Ok(_) => {
           return;
@@ -136,12 +132,6 @@ impl Operation {
         }
       },
       _other => (),
-    }
-    match rtodo.write_conf() {
-      Ok(_) => (),
-      Err(err) => {
-        panic!("{}", err);
-      }
     }
   }
 }
@@ -209,10 +199,33 @@ impl Logger {
 }
 
 impl Config {
-  pub fn add_entry(&mut self, entry: &Entry, id: u32) {
-    let mut entry = entry.clone();
+  pub fn add_entry(&mut self, mut entry: Entry, id: u32) {
     entry.id = id;
     self.entries.push(entry);
+  }
+
+  pub fn delete_entry(&mut self, identifier: &EntryIdentifier) {
+    let mut indexes = vec![];
+    let mut offset = 0;
+    for (index, entry) in self.entries.iter().enumerate() {
+      match identifier.clone() {
+        EntryIdentifier::Id(id) => {
+          if entry.id == id {
+            indexes.push(index);
+          }
+        }
+        EntryIdentifier::Name(name) => {
+          if entry.name == name {
+            indexes.push(index);
+          }
+        }
+      }
+    }
+    indexes.sort();
+    for i in indexes {
+      self.entries.remove(i - offset);
+      offset += 1;
+    }
   }
 }
 
@@ -227,8 +240,10 @@ impl Default for Config {
 }
 
 impl Rtodo {
-  pub fn add_entry(&mut self, entry: Entry) {
-    self.config.add_entry(&entry, self.cur_entry_id + 1);
+  pub fn add_entry(&mut self, entry: Entry) -> Result<(), Box<dyn Error>> {
+    self.config.add_entry(entry, self.cur_entry_id + 1);
+    self.write_conf()?;
+    Ok(())
   }
 
   pub fn write_conf(&self) -> Result<(), Box<dyn Error>> {
@@ -258,28 +273,10 @@ impl Rtodo {
     Ok(())
   }
 
-  pub fn delete_entry(&mut self, identifier: EntryIdentifier) {
-    let mut indexes = vec![];
-    let mut offset = 0;
-    for (index, entry) in self.get_entries().iter().enumerate() {
-      match identifier.clone() {
-        EntryIdentifier::Id(id) => {
-          if entry.id == id {
-            indexes.push(index);
-          }
-        }
-        EntryIdentifier::Name(name) => {
-          if entry.name == name {
-            indexes.push(index);
-          }
-        }
-      }
-    }
-    indexes.sort();
-    for i in indexes {
-      self.config.entries.remove(i - offset);
-      offset += 1;
-    }
+  pub fn delete_entry(&mut self, identifier: &EntryIdentifier) -> Result<(), Box<dyn Error>> {
+    self.config.delete_entry(identifier);
+    self.write_conf()?;
+    Ok(())
   }
 }
 
@@ -662,7 +659,7 @@ impl Execute {
   }
 
   pub fn exec(&self) -> Result<u32, Box<dyn Error>> {
-    let child = process::Command::new(self.executable.clone())
+    let child = process::Command::new(&self.executable)
       .args(self.args.clone().unwrap_or(vec![]))
       .envs(self.env.clone().unwrap_or(HashMap::new()))
       .current_dir(self.working_dir.clone().unwrap_or("/tmp".into()))
