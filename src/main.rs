@@ -1,7 +1,6 @@
+use log::{error, info};
 use std::env::args;
 use std::fs;
-use std::sync::{RwLock};
-use log::{error, info};
 
 mod daemon;
 mod funcs;
@@ -25,7 +24,7 @@ fn main() {
       }
     }
   }
-  let opt = match Operation::from_args(&args) {
+  let mut opt = match Operation::from_args(&args) {
     Ok(opt) => opt,
     Err(err) => {
       err.source().unwrap();
@@ -35,13 +34,23 @@ fn main() {
   let config_content = match fs::read(&path) {
     Ok(content) => content,
     Err(err) => {
-      error!("Error: cannot read config file: {}, Err: {}", path.to_str().unwrap_or("Unknown"), err);
+      error!(
+        "Error: cannot read config file: {}, Err: {}",
+        path.to_str().unwrap_or("Unknown"),
+        err
+      );
       match fs::write(&path, "") {
         Ok(_) => {
           info!("Info: auto created default config file.");
-          serde_json::to_string_pretty(&Config::default()).unwrap().into()
+          serde_json::to_string_pretty(&Config::default())
+            .unwrap()
+            .into()
         }
-        Err(err) => panic!("Error: cannot create config file: {}, Err: {}", path.to_str().unwrap_or("Unknown"), err)
+        Err(err) => panic!(
+          "Error: cannot create config file: {}, Err: {}",
+          path.to_str().unwrap_or("Unknown"),
+          err
+        ),
       }
     }
   };
@@ -51,7 +60,12 @@ fn main() {
       if err.to_string().starts_with("missing field") {
         Config::default()
       } else {
-        panic!("{}", err);
+        error!(
+          "Error: cannot parse config file: {}, Err: {}",
+          path.to_str().unwrap_or("Unknown"),
+          err
+        );
+        return ();
       }
     }
   };
@@ -63,26 +77,5 @@ fn main() {
     cur_entry_id,
   };
   rtodo.init_works().unwrap();
-  match opt {
-    Operation::Add(entry) => {
-      let name = entry.name.clone();
-      rtodo.add_entry(entry);
-      print!("Succussfully added {}", name);
-    }
-    Operation::StartDaemon() => match daemon::start_daemon(RwLock::new(rtodo)) {
-      Ok(_) => {
-        return;
-      }
-      Err(err) => {
-        panic!("{}", err);
-      }
-    },
-    _other => (),
-  }
-  match rtodo.write_conf() {
-    Ok(_) => (),
-    Err(err) => {
-      panic!("{}", err);
-    }
-  }
+  opt.handle(rtodo);
 }

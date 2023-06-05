@@ -40,7 +40,7 @@ pub struct RtodoState {
 pub struct Rtodo {
   pub config: Config,
   pub works: Vec<RwLock<Work>>,
-  pub cur_entry_id: i32,
+  pub cur_entry_id: u32,
   pub conf_path: String,
 }
 
@@ -120,6 +120,7 @@ pub struct Work {
   pub running_processes: Vec<Process>,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub enum EntryIdentifier {
   Id(u32),
   Name(String),
@@ -193,7 +194,7 @@ pub enum DoIfRunning {
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Entry {
-  pub id: i32,
+  pub id: u32,
   pub name: String,
   pub action: Action,
   pub logger: Logger,
@@ -236,7 +237,7 @@ pub trait CommandHelp {
 pub enum Trigger {
   Timer(Timer),
   #[default]
-  None
+  None,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]

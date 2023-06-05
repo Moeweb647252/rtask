@@ -3,11 +3,9 @@ use std::sync::{Arc, RwLock};
 use crate::types::*;
 use crate::utils::*;
 
-
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer, Responder};
 use tokio::runtime::Runtime;
-use log::info;
 
 async fn hello() -> impl Responder {
   nsucc(200, "Hello world")
@@ -21,18 +19,27 @@ async fn get_entries(data: ReqData, state: RS) -> impl Responder {
   nsucc(200, rtodo.get_entries())
 }
 
-async fn add_entries(data: ReqDataT<Entry>, state: RS) -> impl Responder {
-  let rtodo = get_rtodo_read_gurad(&state).await;
+async fn add_entries(data: ReqDataT<Vec<Entry>>, state: RS) -> impl Responder {
+  let mut rtodo = get_rtodo_write_gurad(&state).await;
   if !data.check_token(&rtodo) {
     return nerr(100, "Invalid token");
   }
-  let mut rtodo = get_rtodo_write_gurad(&state).await;
-  rtodo.add_entry(match &data.data {
+  for entry in match &data.data {
     Some(d) => d.clone(),
     None => {
       return nerr(100, "Invalid data");
     }
-  });
+  } {
+    rtodo.add_entry(entry);
+  }
+  nsucc(200, "succeed")
+}
+
+async fn delete_entries(data: ReqDataT<Vec<EntryIdentifier>>, state: RS) -> impl Responder {
+  let mut rtodo = get_rtodo_write_gurad(&state).await;
+  if !data.check_token(&rtodo) {
+    return nerr(100, "Invalid token");
+  }
   nsucc(200, "succeed")
 }
 

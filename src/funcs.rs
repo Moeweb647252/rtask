@@ -1,3 +1,4 @@
+use crate::daemon;
 use crate::types::*;
 use crate::utils::*;
 use chrono::TimeZone;
@@ -73,12 +74,21 @@ impl Operation {
         }
       }
       "start-daemon" => {
+        if check_if_help_in_args(args) {
+          return Ok(Operation::Help(Some(OperationType::StartDaemon)));
+        }
         operation = Operation::StartDaemon();
       }
       "stop-daemon" => {
+        if check_if_help_in_args(args) {
+          return Ok(Operation::Help(Some(OperationType::StopDaemon)));
+        }
         operation = Operation::StopDaemon();
       }
       "list" => {
+        if check_if_help_in_args(args) {
+          return Ok(Operation::Help(Some(OperationType::List)));
+        }
         operation = Operation::List();
       }
       "detail" => {
@@ -100,11 +110,39 @@ impl Operation {
         operation = Operation::Help(None);
       }
       "version" => {
+        if check_if_help_in_args(args) {
+          return Ok(Operation::Help(Some(OperationType::Version)));
+        }
         operation = Operation::Version;
       }
       _ => {}
     }
     Ok(operation)
+  }
+
+  pub fn handle(&mut self, mut rtodo: Rtodo) {
+    match self {
+      Operation::Add(entry) => {
+        let name = entry.name.clone();
+        rtodo.add_entry(entry.clone());
+        print!("Succussfully added {}", name);
+      }
+      Operation::StartDaemon() => match daemon::start_daemon(RwLock::new(rtodo)) {
+        Ok(_) => {
+          return;
+        }
+        Err(err) => {
+          panic!("{}", err);
+        }
+      },
+      _other => (),
+    }
+    match rtodo.write_conf() {
+      Ok(_) => (),
+      Err(err) => {
+        panic!("{}", err);
+      }
+    }
   }
 }
 
@@ -171,7 +209,7 @@ impl Logger {
 }
 
 impl Config {
-  pub fn add_entry(&mut self, entry: &Entry, id: i32) {
+  pub fn add_entry(&mut self, entry: &Entry, id: u32) {
     let mut entry = entry.clone();
     entry.id = id;
     self.entries.push(entry);
@@ -219,6 +257,30 @@ impl Rtodo {
     }
     Ok(())
   }
+
+  pub fn delete_entry(&mut self, identifier: EntryIdentifier) {
+    let mut indexes = vec![];
+    let mut offset = 0;
+    for (index, entry) in self.get_entries().iter().enumerate() {
+      match identifier.clone() {
+        EntryIdentifier::Id(id) => {
+          if entry.id == id {
+            indexes.push(index);
+          }
+        }
+        EntryIdentifier::Name(name) => {
+          if entry.name == name {
+            indexes.push(index);
+          }
+        }
+      }
+    }
+    indexes.sort();
+    for i in indexes {
+      self.config.entries.remove(i - offset);
+      offset += 1;
+    }
+  }
 }
 
 impl Err {
@@ -251,14 +313,21 @@ impl DateTime {
     min: u32,
     sec: u32,
   ) -> Option<Self> {
-    let new = chrono::Local.with_ymd_and_hms(year, month, day, hour, min, sec);
-    let new = match new.single() {
-      Some(data) => data,
-      None => {
-        error!("chrono::Local.with_ymd_and_hms::single returns None!");
-        return None
+    let new = match chrono::Local.with_ymd_and_hms(year, month, day, hour, min, sec) {
+      chrono::LocalResult::Single(data) => data,
+      chrono::LocalResult::Ambiguous(dt, dt2) => {
+        #[cfg(debug_assertions)]
+        println!("Ambiguous time: {} or {}", dt, dt2);
+        dt
       }
-        ,
+      chrono::LocalResult::None => {
+        #[cfg(debug_assertions)]
+        error!(
+          "chrono::Local.with_ymd_and_hms::single returns None! at dt: {:?}",
+          (year, month, day, hour, min, sec)
+        );
+        return None;
+      }
     };
     Some(Self {
       sec: new.second(),
@@ -382,20 +451,49 @@ impl DateTime {
   }
 
   pub fn is_up(&self) -> bool {
-    self.timestamp() >= chrono::Local::now().timestamp()
+    /*#[cfg(debug_assertions)]
+    println!(
+      "self.timestamp(): {}, chrono::Local::now().timestamp(): {}",
+      self.timestamp(),
+      chrono::Local::now().timestamp()
+    );*/
+    self.timestamp() <= chrono::Local::now().timestamp()
   }
 }
 
 impl ops::Add<Duration> for DateTime {
   type Output = Option<DateTime>;
   fn add(self, duration: Duration) -> Self::Output {
+    let new = match chrono::Local.with_ymd_and_hms(
+      self.year, self.month, self.day, self.hour, self.min, self.sec,
+    ) {
+      chrono::LocalResult::Single(data) => data,
+      chrono::LocalResult::Ambiguous(dt, dt2) => {
+        #[cfg(debug_assertions)]
+        println!("Ambiguous time: {} or {}", dt, dt2);
+        dt
+      }
+      chrono::LocalResult::None => {
+        #[cfg(debug_assertions)]
+        error!(
+          "chrono::Local.with_ymd_and_hms::single returns None! at dt: {:?}",
+          (self.year, self.month, self.day, self.hour, self.min, self.sec)
+        );
+        return None;
+      }
+    } + chrono::Duration::seconds(duration.sec as i64)
+      + chrono::Duration::minutes(duration.min as i64)
+      + chrono::Duration::hours(duration.hour as i64)
+      + chrono::Duration::days(duration.day as i64)
+      + chrono::Duration::days(duration.month as i64 * 30)
+      + chrono::Duration::days(duration.year as i64 * 365);
     Self::from_ymd_hms(
-      self.year + duration.year,
-      self.month + duration.month,
-      self.day + duration.day,
-      self.hour + duration.hour,
-      self.min + duration.min,
-      self.sec + duration.sec,
+      new.year(),
+      new.month(),
+      new.day(),
+      new.hour(),
+      new.minute(),
+      new.second(),
     )
   }
 }
@@ -463,6 +561,12 @@ impl Duration {
         _ => (),
       }
     }
+    duration.total_sec = (duration.sec
+      + duration.min * 60
+      + duration.hour * 3600
+      + duration.day * 86400
+      + duration.month * 2592000
+      + duration.year as u32 * 31104000) as u64;
     if hasarg {
       Some(duration)
     } else {
