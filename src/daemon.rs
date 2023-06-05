@@ -13,43 +13,61 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
   info!("Info: Starting exectutor");
   loop {
     thread::sleep(time::Duration::from_millis(100));
-    let works = {&match rtodo_rwl.try_read() {
-      Ok(data) => data,
-      Err(err) => {
-        error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
-        continue;
-      }
-    }
-    .works};
-    for work_rwl in works.iter() {
-      let work = {match work_rwl.try_read() {
+    let works = {
+      &match rtodo_rwl.try_read() {
         Ok(data) => data,
         Err(err) => {
-          error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
+          error!(
+            "Error: Internal error: {}, line:{}, file: {}",
+            err,
+            line!(),
+            file!()
+          );
           continue;
         }
-      }.clone()};
+      }
+      .works
+    };
+    for work_rwl in works.iter() {
+      let work = {
+        match work_rwl.try_read() {
+          Ok(data) => data,
+          Err(err) => {
+            error!(
+              "Error: Internal error: {}, line:{}, file: {}",
+              err,
+              line!(),
+              file!()
+            );
+            continue;
+          }
+        }
+        .clone()
+      };
       //#[cfg(debug_assertions)]
       //print!("{}", work_write_guard.entry.name);
       match &work.entry.trigger {
         Trigger::Timer(_) => {
-          if work
-            .trigger_state
-            .exec_time
-            .clone()
-            .unwrap()
-            .is_up()
-          {
+          if work.trigger_state.exec_time.clone().unwrap().is_up() {
             match work.status {
               Status::Running => {
                 let mut work_write_guard = match work_rwl.try_write() {
                   Ok(data) => {
                     #[cfg(debug_assertions)]
-                    info!("Info: got write lock of works at line:{}, file: {}", line!(), file!());
+                    info!(
+                      "Info: got write lock of works at line:{}, file: {}",
+                      line!(),
+                      file!()
+                    );
                     data
-                  },
+                  }
                   Err(err) => {
-                    error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
+                    error!(
+                      "Error: Internal error: {}, line:{}, file: {}",
+                      err,
+                      line!(),
+                      file!()
+                    );
                     continue;
                   }
                 };
@@ -104,11 +122,20 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
                 let mut work_write_guard = match work_rwl.try_write() {
                   Ok(data) => {
                     #[cfg(debug_assertions)]
-                    info!("Info: got write lock of works at line:{}, file: {}", line!(), file!());
+                    info!(
+                      "Info: got write lock of works at line:{}, file: {}",
+                      line!(),
+                      file!()
+                    );
                     data
-                  },
+                  }
                   Err(err) => {
-                    error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
+                    error!(
+                      "Error: Internal error: {}, line:{}, file: {}",
+                      err,
+                      line!(),
+                      file!()
+                    );
                     continue;
                   }
                 };
@@ -138,34 +165,58 @@ pub fn start_checker(rtodo_rwl: Arc<RwLock<Rtodo>>) {
   info!("Info: Starting checker");
   loop {
     thread::sleep(time::Duration::from_millis(100));
-    let works = {&match rtodo_rwl.try_read() {
-      Ok(data) => data,
-      Err(err) => {
-        error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
-        continue;
-      }
-    }
-    .works};
-    for work_rwl in works.iter() {
-      let work = {match work_rwl.try_read() {
+    let works = {
+      &match rtodo_rwl.try_read() {
         Ok(data) => data,
         Err(err) => {
-          #[cfg(debug_assertions)]
-          error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
+          error!(
+            "Error: Internal error: {}, line:{}, file: {}",
+            err,
+            line!(),
+            file!()
+          );
           continue;
         }
-      }.clone()};
+      }
+      .works
+    };
+    for work_rwl in works.iter() {
+      let work = {
+        match work_rwl.try_read() {
+          Ok(data) => data,
+          Err(err) => {
+            #[cfg(debug_assertions)]
+            error!(
+              "Error: Internal error: {}, line:{}, file: {}",
+              err,
+              line!(),
+              file!()
+            );
+            continue;
+          }
+        }
+        .clone()
+      };
       for (_, thread) in work.running_processes.iter().enumerate() {
         if !check_if_process_by_pid_alive(thread.pid) {
           match work_rwl.try_write() {
             Ok(data) => {
               #[cfg(debug_assertions)]
-              info!("Info: got write lock of works at line:{}, file: {}", line!(), file!());
+              info!(
+                "Info: got write lock of works at line:{}, file: {}",
+                line!(),
+                file!()
+              );
               data
-            },
+            }
             Err(err) => {
               #[cfg(debug_assertions)]
-              error!("Error: Internal error: {}, line:{}, file: {}", err, line!(), file!());
+              error!(
+                "Error: Internal error: {}, line:{}, file: {}",
+                err,
+                line!(),
+                file!()
+              );
               continue;
             }
           }
@@ -185,8 +236,23 @@ pub fn start_daemon(rtodo_rwl: RwLock<Rtodo>) -> Result<(), Box<dyn Error>> {
   let executor_thread = thread::spawn(move || start_executor(rtodo_rwl_move));
   let rtodo_rwl_move = rtodo_rwl.clone();
   let checker_thread = thread::spawn(move || start_checker(rtodo_rwl_move));
-  server_thread.join().unwrap();
-  executor_thread.join().unwrap();
-  checker_thread.join().unwrap();
+  match server_thread.join() {
+    Ok(_) => (),
+    Err(_) => {
+      error!("Error: Failed to join server thread");
+    }
+  }
+  match executor_thread.join() {
+    Ok(_) => (),
+    Err(_) => {
+      error!("Error: Failed to join executer thread");
+    }
+  }
+  match checker_thread.join() {
+    Ok(_) => (),
+    Err(_) => {
+      error!("Error: Failed to join checker thread");
+    }
+  }
   Ok(())
 }
