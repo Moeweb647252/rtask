@@ -84,7 +84,9 @@ async fn edit_entry(data: ReqDataT<Entry>, state: RS) -> impl Responder {
   }
   match &data.data {
     Some(d) => match rtodo.edit_entry(d) {
-      Ok(_) => {}
+      Ok(_) => {
+        return nsucc(200, "succeed");
+      }
       Err(e) => {
         return nerr(100, &format!("Failed to edit entry: {}", e));
       }
@@ -93,7 +95,6 @@ async fn edit_entry(data: ReqDataT<Entry>, state: RS) -> impl Responder {
       return nerr(100, "Invalid data");
     }
   };
-  nsucc(200, "succeed")
 }
 
 pub fn start_server(rtodo: Arc<RwLock<Rtodo>>) -> std::io::Result<()> {
@@ -115,11 +116,12 @@ pub fn start_server(rtodo: Arc<RwLock<Rtodo>>) -> std::io::Result<()> {
               "/",
               web::get().to(|| async { String::from("Hello, rtodo!") }),
             )
+            .route("/validateToken", web::post().to(validate_token))
             .route("/getEntries", web::post().to(get_entries))
             .route("/getWorks", web::post().to(get_works))
-            .route("/validateToken", web::post().to(validate_token))
             .route("/addEntries", web::post().to(add_entries))
-            .route("/deleteEntries", web::post().to(delete_entries)),
+            .route("/deleteEntries", web::post().to(delete_entries))
+            .route("/editEntry", web::post().to(edit_entry)),
         )
         .service(web::resource("/").route(web::get().to(hello)))
     })

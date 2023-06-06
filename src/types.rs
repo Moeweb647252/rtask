@@ -10,11 +10,6 @@ pub type RS = web::Data<RtodoState>;
 pub type ReqData = web::Json<serde_json::Value>;
 pub type ReqDataT<T> = web::Json<ReqCommonData<T>>;
 
-#[derive(Debug)]
-pub struct RtodoError {
-  pub msg: String,
-}
-
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ReqCommonData<T> {
   pub token: String,

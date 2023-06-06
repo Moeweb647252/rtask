@@ -8,8 +8,6 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
-use std::fmt;
-use std::fmt::Display;
 use std::fs::File;
 use std::io::Write;
 use std::ops;
@@ -227,6 +225,21 @@ impl Config {
       offset += 1;
     }
   }
+
+  pub fn edit_entry(&mut self, entry: &Entry) -> Result<(), Box<dyn Error>> {
+    let mut succ = false;
+    for e in self.entries.iter_mut() {
+      if e.id == entry.id {
+        *e = entry.clone();
+        succ = true;
+      }
+    }
+    if succ {
+      Ok(())
+    } else {
+      Err("Entry not found".into())
+    }
+  }
 }
 
 impl Default for Config {
@@ -277,6 +290,10 @@ impl Rtodo {
     self.config.delete_entry(identifier);
     self.write_conf()?;
     Ok(())
+  }
+
+  pub fn edit_entry(&mut self, entry: &Entry) -> Result<(), Box<dyn Error>> {
+    self.config.edit_entry(entry)
   }
 }
 
@@ -727,7 +744,7 @@ impl Work {
               self.trigger_state.exec_time =
                 match self.trigger_state.exec_time.clone().unwrap() + timer {
                   Some(data) => Some(data),
-                  None => return Err(RtodoError::new("Error: Invalid time").into()),
+                  None => return Err("Error: Invalid time".into()),
                 };
               self.trigger_state.exec_times += 1;
               execute.exec()?;
@@ -735,12 +752,9 @@ impl Work {
             Timer::Once(_) => {
               if self.trigger_state.exec_times >= 1 {
                 return Err(
-                  RtodoError::new(
-                    format!(
-                      "Error: Entry {} with Once timer executed twice!",
-                      self.entry.name
-                    )
-                    .as_str(),
+                  format!(
+                    "Error: Entry {} with Once timer executed twice!",
+                    self.entry.name
                   )
                   .into(),
                 );
@@ -752,12 +766,9 @@ impl Work {
             Timer::ManyTimes(timer, times) => {
               if self.trigger_state.exec_times >= times {
                 return Err(
-                  RtodoError::new(
-                    format!(
-                      "Error: Entry {} with ManyTimes timer executed exceeded times!",
-                      self.entry.name
-                    )
-                    .as_str(),
+                  format!(
+                    "Error: Entry {} with ManyTimes timer executed exceeded times!",
+                    self.entry.name
                   )
                   .into(),
                 );
@@ -765,19 +776,16 @@ impl Work {
               self.trigger_state.exec_time =
                 match self.trigger_state.exec_time.clone().unwrap() + timer {
                   Some(data) => Some(data),
-                  None => return Err(RtodoError::new("Error: Invalid time").into()),
+                  None => return Err("Error: Invalid time".into()),
                 };
               self.trigger_state.exec_times += 1;
               execute.exec()?;
             }
             Timer::Never => {
               return Err(
-                RtodoError::new(
-                  format!(
-                    "Error: Entry with a Never Timer executed! Entry: {}",
-                    self.entry.name
-                  )
-                  .as_str(),
+                format!(
+                  "Error: Entry with a Never Timer executed! Entry: {}",
+                  self.entry.name
                 )
                 .into(),
               )
@@ -811,22 +819,6 @@ impl Work {
   pub fn restart(&mut self) -> Result<(), Box<dyn Error>> {
     self.stop()?;
     self.start()
-  }
-}
-
-impl Display for RtodoError {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.msg)
-  }
-}
-
-impl Error for RtodoError {}
-
-impl RtodoError {
-  pub fn new(msg: &str) -> Self {
-    Self {
-      msg: msg.to_string(),
-    }
   }
 }
 
