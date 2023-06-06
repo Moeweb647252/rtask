@@ -37,6 +37,15 @@ pub struct Rtodo {
   pub works: Vec<RwLock<Work>>,
   pub cur_entry_id: u32,
   pub conf_path: String,
+  pub executor_pid: i32,
+  pub checker_pid: i32,
+  pub server_pid: i32,
+  pub daemon_status: RtodoDaemonStatus,
+}
+
+pub enum RtodoDaemonStatus {
+  Running,
+  Stopped,
 }
 
 #[derive(Serialize, Deserialize)]

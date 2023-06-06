@@ -295,6 +295,10 @@ impl Rtodo {
   pub fn edit_entry(&mut self, entry: &Entry) -> Result<(), Box<dyn Error>> {
     self.config.edit_entry(entry)
   }
+
+  pub fn stop_daemon(&mut self) {
+    self.daemon_status = RtodoDaemonStatus::Stopped;
+  }
 }
 
 impl Err {

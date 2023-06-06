@@ -75,6 +75,10 @@ fn main() {
     works: Vec::new(),
     config,
     cur_entry_id,
+    executor_pid: -1,
+    checker_pid: -1,
+    server_pid: -1,
+    daemon_status: RtodoDaemonStatus::Running,
   };
   rtodo.init_works().unwrap();
   opt.handle(rtodo);

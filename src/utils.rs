@@ -1,4 +1,6 @@
 use crate::types::*;
+use log::info;
+#[cfg(target_family = "unix")]
 use nix::{sys::signal::kill, unistd::Pid};
 use rand::Rng;
 use serde::Serialize;
@@ -6,7 +8,6 @@ use std::{
   str::FromStr,
   sync::{RwLockReadGuard, RwLockWriteGuard},
 };
-use log::info;
 
 pub fn generate_token() -> String {
   let mut rng = rand::thread_rng();
@@ -92,10 +93,14 @@ pub async fn get_rtodo_write_gurad(state: &RS) -> RwLockWriteGuard<Rtodo> {
   loop {
     match state.rtodo.try_write() {
       Ok(data) => {
-      #[cfg(debug_assertions)]
-      info!("Info: got write lock of works at line:{}, file: {}", line!(), file!());
-      break data
-    },
+        #[cfg(debug_assertions)]
+        info!(
+          "Info: got write lock of works at line:{}, file: {}",
+          line!(),
+          file!()
+        );
+        break data;
+      }
       Err(_) => tokio::time::sleep(tokio::time::Duration::from_millis(100)).await,
     }
   }

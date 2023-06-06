@@ -5,6 +5,7 @@ use crate::utils::*;
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer, Responder};
+use log::{error, info};
 use tokio::runtime::Runtime;
 
 async fn hello() -> impl Responder {
@@ -97,14 +98,53 @@ async fn edit_entry(data: ReqDataT<Entry>, state: RS) -> impl Responder {
   };
 }
 
-pub fn start_server(rtodo: Arc<RwLock<Rtodo>>) -> std::io::Result<()> {
+async fn stop_daemon(data: ReqData, state: RS) -> impl Responder {
+  let mut rtodo = get_rtodo_write_gurad(&state).await;
+  if !check_token(&data, &rtodo) {
+    return nerr(100, "Invalid token");
+  }
+  info!("Info: stopping daemon");
+  rtodo.stop_daemon();
+  std::process::exit(0);
+}
+
+pub fn start_server(rtodo: Arc<RwLock<Rtodo>>) -> () {
+  {
+    match rtodo.write() {
+      Ok(data) => {
+        #[cfg(debug_assertions)]
+        info!(
+          "Info: got write lock of works at line:{}, file: {}",
+          line!(),
+          file!()
+        );
+        data
+      }
+      Err(err) => {
+        error!(
+          "Error: Internal error: {}, line:{}, file: {}",
+          err,
+          line!(),
+          file!()
+        );
+        return;
+      }
+    }
+    .executor_pid = {
+      #[cfg(target_family = "unix")]
+      nix::unistd::getpid().as_raw()
+    }
+  }
   let rt = Runtime::new().unwrap();
-  let addr = rtodo.read().unwrap().config.address.clone();
+  let addr = match rtodo.read().unwrap().config.address.clone() {
+    Some(a) => a,
+    None => "0.0.0.0:6472".to_string(),
+  };
   rt.block_on(async {
     let state = web::Data::new(RtodoState {
       rtodo: rtodo.clone(),
     });
-    HttpServer::new(move || {
+    let server = HttpServer::new(move || {
       App::new()
         .wrap(Cors::default().allow_any_origin())
         .wrap(Logger::default())
@@ -121,12 +161,17 @@ pub fn start_server(rtodo: Arc<RwLock<Rtodo>>) -> std::io::Result<()> {
             .route("/getWorks", web::post().to(get_works))
             .route("/addEntries", web::post().to(add_entries))
             .route("/deleteEntries", web::post().to(delete_entries))
-            .route("/editEntry", web::post().to(edit_entry)),
+            .route("/editEntry", web::post().to(edit_entry))
+            .route("/stopDaemon", web::post().to(stop_daemon)),
         )
         .service(web::resource("/").route(web::get().to(hello)))
     })
-    .bind(addr.unwrap_or("0.0.0.0:6472".to_string()))?
-    .run()
-    .await
+    .bind(&addr)
+    .unwrap_or_else(|err| panic!("Error: Failed to bind address: {}, Error: {}", addr, err))
+    .run();
+    info!("Info: Server started at {}", addr);
+    server.await.unwrap_or_else(|err| {
+      error!("Error: Server error: {}", err);
+    });
   })
 }

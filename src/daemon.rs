@@ -10,12 +10,47 @@ use std::thread;
 use std::time;
 
 pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
+  {
+    match rtodo_rwl.write() {
+      Ok(data) => {
+        #[cfg(debug_assertions)]
+        info!(
+          "Info: got write lock of works at line:{}, file: {}",
+          line!(),
+          file!()
+        );
+        data
+      }
+      Err(err) => {
+        error!(
+          "Error: Internal error: {}, line:{}, file: {}",
+          err,
+          line!(),
+          file!()
+        );
+        return;
+      }
+    }
+    .executor_pid = {
+      #[cfg(target_family = "unix")]
+      nix::unistd::getpid().as_raw()
+    }
+  }
   info!("Info: Starting exectutor");
   loop {
     thread::sleep(time::Duration::from_millis(100));
     let works = {
       &match rtodo_rwl.try_read() {
-        Ok(data) => data,
+        Ok(data) => {
+          match data.daemon_status {
+            RtodoDaemonStatus::Running => (),
+            RtodoDaemonStatus::Stopped => {
+              info!("Info: Stopping executor");
+              exit(0);
+            }
+          };
+          data
+        }
         Err(err) => {
           error!(
             "Error: Internal error: {}, line:{}, file: {}",
@@ -162,6 +197,32 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
 }
 
 pub fn start_checker(rtodo_rwl: Arc<RwLock<Rtodo>>) {
+  {
+    match rtodo_rwl.write() {
+      Ok(data) => {
+        #[cfg(debug_assertions)]
+        info!(
+          "Info: got write lock of works at line:{}, file: {}",
+          line!(),
+          file!()
+        );
+        data
+      }
+      Err(err) => {
+        error!(
+          "Error: Internal error: {}, line:{}, file: {}",
+          err,
+          line!(),
+          file!()
+        );
+        return;
+      }
+    }
+    .checker_pid = {
+      #[cfg(target_family = "unix")]
+      nix::unistd::getpid().as_raw()
+    }
+  }
   info!("Info: Starting checker");
   loop {
     thread::sleep(time::Duration::from_millis(100));
@@ -233,25 +294,13 @@ pub fn start_daemon(rtodo_rwl: RwLock<Rtodo>) -> Result<(), Box<dyn Error>> {
   let rtodo_rwl_move = rtodo_rwl.clone();
   let server_thread = thread::spawn(move || start_server(rtodo_rwl_move));
   let rtodo_rwl_move = rtodo_rwl.clone();
-  let executor_thread = thread::spawn(move || start_executor(rtodo_rwl_move));
+  thread::spawn(move || start_executor(rtodo_rwl_move));
   let rtodo_rwl_move = rtodo_rwl.clone();
-  let checker_thread = thread::spawn(move || start_checker(rtodo_rwl_move));
+  thread::spawn(move || start_checker(rtodo_rwl_move));
   match server_thread.join() {
     Ok(_) => (),
     Err(_) => {
       error!("Error: Failed to join server thread");
-    }
-  }
-  match executor_thread.join() {
-    Ok(_) => (),
-    Err(_) => {
-      error!("Error: Failed to join executer thread");
-    }
-  }
-  match checker_thread.join() {
-    Ok(_) => (),
-    Err(_) => {
-      error!("Error: Failed to join checker thread");
     }
   }
   Ok(())
