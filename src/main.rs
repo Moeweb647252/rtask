@@ -24,7 +24,7 @@ fn main() {
       }
     }
   }
-  let mut opt = match Operation::from_args(&args) {
+  let opt = match Operation::from_args(&args) {
     Ok(opt) => opt,
     Err(err) => {
       err.source().unwrap();
@@ -58,6 +58,10 @@ fn main() {
     Ok(config) => config,
     Err(err) => {
       if err.to_string().starts_with("missing field") {
+        info!(
+          "Info: failed to parse config file, using default config, Err: {}",
+          err
+        );
         Config::default()
       } else {
         error!(
@@ -79,6 +83,7 @@ fn main() {
     checker_pid: -1,
     server_pid: -1,
     daemon_status: RtodoDaemonStatus::Running,
+    rcli: reqwest::blocking::Client::new(),
   };
   rtodo.init_works().unwrap();
   opt.handle(rtodo);

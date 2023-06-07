@@ -4,7 +4,6 @@ use crate::utils::*;
 use chrono::TimeZone;
 use chrono::{Datelike, Timelike};
 use log::{error, info};
-use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
@@ -118,9 +117,51 @@ impl Operation {
     Ok(operation)
   }
 
-  pub fn handle(&mut self, mut rtodo: Rtodo) {
+  pub fn handle(&self, rtodo: Rtodo) {
     match self {
-      Operation::Add(entry) => {}
+      Operation::Add(entry) => match rtodo
+        .rcli
+        .post(format!(
+          "http://{}/api/addEntries",
+          rtodo.config.address.clone()
+        ))
+        .json(&ReqCommonData {
+          token: rtodo.config.token.clone(),
+          data: Some(vec![&entry]),
+        })
+        .send()
+      {
+        Ok(res) => {
+          if !res.status().is_success() {
+            error!(
+              "Error: Failed to add entry, cannot connect to daemon, Addr: {}",
+              rtodo.config.address
+            );
+            return;
+          }
+          match res.json::<ResCommonData<String>>() {
+            Ok(data) => {
+              if data.code == 200 {
+                info!("Success: Add entry {} successfully", &entry.name);
+              } else {
+                error!("Error: Failed to add entry, {}", data.data);
+              }
+            }
+            Err(err) => {
+              error!(
+                "Error: Failed to add entry, cannot connect to daemon, Addr: {}, Err: {}",
+                rtodo.config.address, err
+              );
+            }
+          }
+        }
+        Err(err) => {
+          error!(
+            "Error: Failed to add entry, cannot connect to daemon, Addr: {}, Err: {}",
+            rtodo.config.address, err
+          );
+        }
+      },
       Operation::StartDaemon() => match daemon::start_daemon(RwLock::new(rtodo)) {
         Ok(_) => {
           return;
@@ -150,6 +191,7 @@ impl Entry {
       trigger,
       status,
       do_if_running,
+      enabled: true,
     }
   }
   pub fn from_args(
@@ -169,7 +211,9 @@ impl Entry {
           let name = args.get(index + 1).ok_or(err)?.clone();
           entry.name = name;
         }
-        "--some" => (),
+        "--disable" => {
+          entry.enabled = false;
+        }
         _ => (),
       }
     }
@@ -246,7 +290,7 @@ impl Default for Config {
   fn default() -> Self {
     Self {
       entries: Vec::new(),
-      address: Some(String::from("0.0.0.0:6472")),
+      address: String::from("0.0.0.0:6472"),
       token: generate_token(),
     }
   }
@@ -276,6 +320,9 @@ impl Rtodo {
 
   pub fn init_works(&mut self) -> Result<(), Box<dyn Error>> {
     for entry in self.get_entries() {
+      if !entry.enabled {
+        continue;
+      }
       self.works.push(RwLock::new(Work {
         status: entry.status,
         entry: entry.clone(),
@@ -301,16 +348,7 @@ impl Rtodo {
   }
 }
 
-impl Err {
-  pub fn new(code: i32, msg: &str) -> Self {
-    Self {
-      code,
-      msg: msg.to_string(),
-    }
-  }
-}
-
-impl<T: Serialize> Succ<T> {
+impl<T> ResCommonData<T> {
   pub fn new(code: i32, data: T) -> Self {
     Self { code, data }
   }

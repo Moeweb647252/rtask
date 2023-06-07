@@ -136,10 +136,7 @@ pub fn start_server(rtodo: Arc<RwLock<Rtodo>>) -> () {
     }
   }
   let rt = Runtime::new().unwrap();
-  let addr = match rtodo.read().unwrap().config.address.clone() {
-    Some(a) => a,
-    None => "0.0.0.0:6472".to_string(),
-  };
+  let addr = rtodo.read().unwrap().config.address.clone();
   rt.block_on(async {
     let state = web::Data::new(RtodoState {
       rtodo: rtodo.clone(),

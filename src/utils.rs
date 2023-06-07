@@ -34,6 +34,16 @@ pub fn check_if_help_in_args(args: &[String]) -> bool {
 }
 
 pub fn check_token(data: &ReqData, rtodo: &Rtodo) -> bool {
+  #[cfg(debug_assertions)]
+  info!(
+    "Info: token in request: {}, token in rtodo: {}",
+    data
+      .get("token")
+      .unwrap_or(&serde_json::Value::Null)
+      .as_str()
+      .unwrap_or(""),
+    rtodo.get_token()
+  );
   data
     .get("token")
     .unwrap_or(&serde_json::Value::Null)
@@ -43,12 +53,12 @@ pub fn check_token(data: &ReqData, rtodo: &Rtodo) -> bool {
 }
 
 pub fn nerr(code: i32, msg: &str) -> String {
-  let err = Err::new(code, msg);
+  let err = ResCommonData::new(code, msg);
   serde_json::to_string(&err).unwrap()
 }
 
 pub fn nsucc<T: Serialize>(code: i32, data: T) -> String {
-  let succ = Succ::new(code, data);
+  let succ = ResCommonData::new(code, data);
   serde_json::to_string_pretty(&succ).unwrap()
 }
 

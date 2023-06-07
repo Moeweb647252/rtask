@@ -16,14 +16,8 @@ pub struct ReqCommonData<T> {
   pub data: Option<T>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Err {
-  pub code: i32,
-  pub msg: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Succ<T: Serialize> {
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ResCommonData<T> {
   pub code: i32,
   pub data: T,
 }
@@ -41,6 +35,7 @@ pub struct Rtodo {
   pub checker_pid: i32,
   pub server_pid: i32,
   pub daemon_status: RtodoDaemonStatus,
+  pub rcli: reqwest::blocking::Client,
 }
 
 pub enum RtodoDaemonStatus {
@@ -52,7 +47,7 @@ pub enum RtodoDaemonStatus {
 pub struct Config {
   #[serde(default)]
   pub entries: Vec<Entry>,
-  pub address: Option<String>,
+  pub address: String,
   pub token: String,
 }
 
@@ -205,6 +200,7 @@ pub struct Entry {
   pub trigger: Trigger,
   pub status: Status,
   pub do_if_running: DoIfRunning,
+  pub enabled: bool,
 }
 
 pub enum OperationType {
