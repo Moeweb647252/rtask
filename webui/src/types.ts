@@ -4,6 +4,8 @@ export interface Entry {
   action: {}
   env: string[] | null
   working_dir: string | null
-  logger: string | null | {string: string}
-  timer: {}
+  logger: {}
+  trigger: {}
 }
+
+

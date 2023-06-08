@@ -1,6 +1,6 @@
+use log::{error, info};
 use std::env::args;
 use std::fs;
-use std::sync::RwLock;
 
 mod daemon;
 mod funcs;
@@ -33,17 +33,43 @@ fn main() {
   };
   let config_content = match fs::read(&path) {
     Ok(content) => content,
-    Err(_err) => {
-      panic!("cannot read config file: {}", path.to_str().unwrap());
+    Err(err) => {
+      error!(
+        "Error: cannot read config file: {}, Err: {}",
+        path.to_str().unwrap_or("Unknown"),
+        err
+      );
+      match fs::write(&path, "") {
+        Ok(_) => {
+          info!("Info: auto created default config file.");
+          serde_json::to_string_pretty(&Config::default())
+            .unwrap()
+            .into()
+        }
+        Err(err) => panic!(
+          "Error: cannot create config file: {}, Err: {}",
+          path.to_str().unwrap_or("Unknown"),
+          err
+        ),
+      }
     }
   };
-  let config: Config = match serde_yaml::from_str(&String::from_utf8_lossy(&config_content)) {
+  let config: Config = match serde_json::from_str(&String::from_utf8_lossy(&config_content)) {
     Ok(config) => config,
     Err(err) => {
       if err.to_string().starts_with("missing field") {
+        info!(
+          "Info: failed to parse config file, using default config, Err: {}",
+          err
+        );
         Config::default()
       } else {
-        panic!("{}", err);
+        error!(
+          "Error: cannot parse config file: {}, Err: {}",
+          path.to_str().unwrap_or("Unknown"),
+          err
+        );
+        return ();
       }
     }
   };
@@ -53,27 +79,12 @@ fn main() {
     works: Vec::new(),
     config,
     cur_entry_id,
+    executor_pid: -1,
+    checker_pid: -1,
+    server_pid: -1,
+    daemon_status: RtodoDaemonStatus::Running,
+    rcli: reqwest::blocking::Client::new(),
   };
-  match opt {
-    Operation::Add(entry) => {
-      let name = entry.name.clone();
-      rtodo.add_entry(entry);
-      print!("Succussfully added {}", name.unwrap_or("None".to_string()));
-    }
-    Operation::StartDaemon() => match daemon::start_daemon(RwLock::new(rtodo)) {
-      Ok(_) => {
-        return;
-      }
-      Err(err) => {
-        panic!("{}", err);
-      }
-    },
-    _other => (),
-  }
-  match rtodo.write_conf() {
-    Ok(_) => (),
-    Err(err) => {
-      panic!("{}", err);
-    }
-  }
+  rtodo.init_works().unwrap();
+  opt.handle(rtodo);
 }

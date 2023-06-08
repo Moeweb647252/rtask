@@ -1,7 +1,13 @@
 use crate::types::*;
+use log::info;
+#[cfg(target_family = "unix")]
+use nix::{sys::signal::kill, unistd::Pid};
 use rand::Rng;
 use serde::Serialize;
-use std::str::FromStr;
+use std::{
+  str::FromStr,
+  sync::{RwLockReadGuard, RwLockWriteGuard},
+};
 
 pub fn generate_token() -> String {
   let mut rng = rand::thread_rng();
@@ -28,6 +34,16 @@ pub fn check_if_help_in_args(args: &[String]) -> bool {
 }
 
 pub fn check_token(data: &ReqData, rtodo: &Rtodo) -> bool {
+  #[cfg(debug_assertions)]
+  info!(
+    "Info: token in request: {}, token in rtodo: {}",
+    data
+      .get("token")
+      .unwrap_or(&serde_json::Value::Null)
+      .as_str()
+      .unwrap_or(""),
+    rtodo.get_token()
+  );
   data
     .get("token")
     .unwrap_or(&serde_json::Value::Null)
@@ -37,13 +53,13 @@ pub fn check_token(data: &ReqData, rtodo: &Rtodo) -> bool {
 }
 
 pub fn nerr(code: i32, msg: &str) -> String {
-  let err = Err::new(code, msg);
+  let err = ResCommonData::new(code, msg);
   serde_json::to_string(&err).unwrap()
 }
 
 pub fn nsucc<T: Serialize>(code: i32, data: T) -> String {
-  let succ = Succ::new(code, data);
-  serde_json::to_string(&succ).unwrap()
+  let succ = ResCommonData::new(code, data);
+  serde_json::to_string_pretty(&succ).unwrap()
 }
 
 pub fn garg<T: FromStr>(args: &[String], index: usize) -> Option<T> {
@@ -59,5 +75,43 @@ pub fn garg<T: FromStr>(args: &[String], index: usize) -> Option<T> {
   {
     Ok(data) => Some(data),
     Err(_) => None,
+  }
+}
+
+pub fn random_name() -> String {
+  "Not impled".to_string()
+}
+
+#[cfg(target_family = "unix")]
+pub fn check_if_process_by_pid_alive(pid: i32) -> bool {
+  match kill(Pid::from_raw(pid), None) {
+    Ok(_) => true,
+    Err(_) => false,
+  }
+}
+
+pub async fn get_rtodo_read_gurad(state: &RS) -> RwLockReadGuard<Rtodo> {
+  loop {
+    match state.rtodo.try_read() {
+      Ok(data) => break data,
+      Err(_) => tokio::time::sleep(tokio::time::Duration::from_millis(100)).await,
+    }
+  }
+}
+
+pub async fn get_rtodo_write_gurad(state: &RS) -> RwLockWriteGuard<Rtodo> {
+  loop {
+    match state.rtodo.try_write() {
+      Ok(data) => {
+        #[cfg(debug_assertions)]
+        info!(
+          "Info: got write lock of works at line:{}, file: {}",
+          line!(),
+          file!()
+        );
+        break data;
+      }
+      Err(_) => tokio::time::sleep(tokio::time::Duration::from_millis(100)).await,
+    }
   }
 }

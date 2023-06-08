@@ -14,30 +14,30 @@ const dialog = useDialog();
 const entries: Ref<Entry[]> = ref([]);
 
 const fetchEntries = async () => {
-  axios.post(CONFIG.api_addr+"/api/getEntries",
-  {
-    token: store.getToken
-  }).then(
-    (resp)=> {
-      if (resp.data.code == 200) {
-        entries.value = resp.data.data
-      } else {
+  axios.post(CONFIG.api_addr + "/api/getEntries",
+    {
+      token: store.getToken
+    }).then(
+      (resp) => {
+        if (resp.data.code == 200) {
+          entries.value = resp.data.data
+        } else {
+          dialog.error({
+            content: "cannot get entries!"
+          })
+        }
+      }
+    ).catch(
+      () => {
         dialog.error({
           content: "cannot get entries!"
         })
       }
-    }
-  ).catch(
-    ()=>{
-      dialog.error({
-        content: "cannot get entries!"
-      })
-    }
-  )
+    )
 
 };
 
-onMounted(()=> {
+onMounted(() => {
   fetchEntries()
 })
 
@@ -55,7 +55,7 @@ onMounted(()=> {
         </template>
         <n-space>
           <n-thing title="Action" :description="Object.entries(entry.action)[0][0]"></n-thing>
-          <n-thing title="Timer" :description="Object.entries(entry.timer)[0][0]"></n-thing>
+          <n-thing title="Trigger" :description="Object.entries(entry.trigger)[0][0]"></n-thing>
         </n-space>
       </n-list-item>
     </n-list>
