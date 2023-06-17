@@ -5,18 +5,19 @@ use std::{
   path::PathBuf,
   sync::{Arc, RwLock},
 };
+use ts_rs::TS;
 
 pub type RS = web::Data<RtodoState>;
 pub type ReqData = web::Json<serde_json::Value>;
 pub type ReqDataT<T> = web::Json<ReqCommonData<T>>;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, TS, Deserialize, Clone)]
 pub struct ReqCommonData<T> {
   pub token: String,
   pub data: Option<T>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, TS, Deserialize, Clone)]
 pub struct ResCommonData<T> {
   pub code: i32,
   pub data: T,
@@ -43,7 +44,7 @@ pub enum RtodoDaemonStatus {
   Stopped,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, TS, Deserialize)]
 pub struct Config {
   #[serde(default)]
   pub entries: Vec<Entry>,
@@ -51,7 +52,8 @@ pub struct Config {
   pub token: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default, Copy)]
+#[derive(Serialize, TS, Deserialize, Clone, Default, Copy)]
+//#[ts(export)]
 pub enum Status {
   Error,
   Running,
@@ -60,14 +62,16 @@ pub enum Status {
   Pending,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, TS, Deserialize, Clone)]
+//#[ts(export)]
 pub enum TimeZone {
   Utc,
   Local,
   Offset(i8),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, TS, Deserialize, Clone)]
+//#[ts(export)]
 pub struct DateTime {
   pub year: i32,
   pub month: u32,
@@ -94,7 +98,8 @@ impl Default for DateTime {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, TS, Deserialize, Clone, Default)]
+//#[ts(export)]
 pub struct Duration {
   pub year: i32,
   pub month: u32,
@@ -105,13 +110,15 @@ pub struct Duration {
   pub total_sec: u64,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, TS, Clone)]
+//#[ts(export)]
 pub struct Process {
   pub pid: i32,
   pub output_tmp_file: Option<PathBuf>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, TS, Clone)]
+//#[ts(export)]
 pub struct Work {
   pub status: Status,
   pub entry: Entry,
@@ -119,13 +126,15 @@ pub struct Work {
   pub running_processes: Vec<Process>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, TS, Deserialize, Clone)]
+//#[ts(export)]
 pub enum EntryIdentifier {
   Id(u32),
   Name(String),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, TS, Deserialize, Clone)]
+//#[ts(export)]
 pub enum Logger {
   File(String),
   Default,
@@ -138,7 +147,8 @@ impl Default for Logger {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, TS, Deserialize, Clone, Default)]
+//#[ts(export)]
 pub enum Timer {
   Repeat(Duration),
   Once(DateTime),
@@ -147,26 +157,30 @@ pub enum Timer {
   Never,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, TS, Deserialize, Clone)]
+//#[ts(export)]
 pub struct UnixUser {
   pub uid: u32,
   pub gid: u32,
   pub username: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, TS, Deserialize, Clone)]
+//#[ts(export)]
 pub struct WindowsUser {
   pub username: String,
   pub group_windows: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, TS, Deserialize, Clone)]
+//#[ts(export)]
 pub enum SystemUser {
   Unix(UnixUser),
   Windows(WindowsUser),
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, TS, Deserialize, Clone, Default)]
+//#[ts(export)]
 pub struct Execute {
   pub env: Option<HashMap<String, String>>,
   pub working_dir: Option<String>,
@@ -175,14 +189,16 @@ pub struct Execute {
   pub args: Option<Vec<String>>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, TS, Deserialize, Clone, Default)]
+//#[ts(export)]
 pub enum Action {
   Exec(Execute),
   #[default]
   None,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, TS, Deserialize, Clone, Default)]
+//#[ts(export)]
 pub enum DoIfRunning {
   #[default]
   StartNew,
@@ -191,7 +207,8 @@ pub enum DoIfRunning {
   Continue,
 }
 
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, TS, Deserialize, Default, Clone)]
+//#[ts(export)]
 pub struct Entry {
   pub id: u32,
   pub name: String,
@@ -233,14 +250,16 @@ pub trait CommandHelp {
   fn cmd_help() -> String;
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, TS, Deserialize, Clone, Default)]
+//#[ts(export)]
 pub enum Trigger {
   Timer(Timer),
   #[default]
   None,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, TS, Deserialize, Clone, Default)]
+//#[ts(export)]
 pub struct TriggerState {
   pub exec_time: Option<DateTime>,
   pub exec_times: u32,

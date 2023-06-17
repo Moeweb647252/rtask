@@ -8,9 +8,13 @@ export interface Exec {
   }
 }
 
-export interface Timer {
+export type TimeZone = "Utc" | "Local" | { Offset: number };
 
-}
+export interface DateTime { year: number, month: number, day: number, hour: number, min: number, sec: number, timestamp: bigint, time_zone: TimeZone, }
+
+export interface Duration { year: number, month: number, day: number, hour: number, min: number, sec: number, total_sec: bigint, }
+
+export type Timer = { Repeat: Duration } | { Once: DateTime } | { ManyTimes: [Duration, number] } | "Never";
 
 export enum Option {
   None = "None",
