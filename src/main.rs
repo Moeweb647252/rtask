@@ -12,7 +12,7 @@ use types::*;
 fn main() {
   env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
   let args: Vec<String> = args().collect();
-  let mut path = std::path::PathBuf::from("/etc/rtodo/rtodo.conf");
+  let mut path = std::path::PathBuf::from("/etc/rtask/rtask.conf");
   if args.len() < 2 {
     println!("Usage: {} <operation> [args]", args[0]);
     return;
@@ -74,7 +74,7 @@ fn main() {
     }
   };
   let cur_entry_id = config.entries.iter().map(|i| i.id).max().unwrap_or(0);
-  let mut rtodo = Rtodo {
+  let mut rtask = Rtask {
     conf_path: path.to_str().unwrap().to_string(),
     works: Vec::new(),
     config,
@@ -82,9 +82,9 @@ fn main() {
     executor_pid: -1,
     checker_pid: -1,
     server_pid: -1,
-    daemon_status: RtodoDaemonStatus::Running,
+    daemon_status: RtaskDaemonStatus::Running,
     rcli: reqwest::blocking::Client::new(),
   };
-  rtodo.init_works().unwrap();
-  opt.handle(rtodo);
+  rtask.init_works().unwrap();
+  opt.handle(rtask);
 }

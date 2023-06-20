@@ -117,16 +117,16 @@ impl Operation {
     Ok(operation)
   }
 
-  pub fn handle(&self, rtodo: Rtodo) {
+  pub fn handle(&self, rtask: Rtask) {
     match self {
-      Operation::Add(entry) => match rtodo
+      Operation::Add(entry) => match rtask
         .rcli
         .post(format!(
           "http://{}/api/addEntries",
-          rtodo.config.address.clone()
+          rtask.config.address.clone()
         ))
         .json(&ReqCommonData {
-          token: rtodo.config.token.clone(),
+          token: rtask.config.token.clone(),
           data: Some(vec![&entry]),
         })
         .send()
@@ -135,7 +135,7 @@ impl Operation {
           if !res.status().is_success() {
             error!(
               "Error: Failed to add entry, cannot connect to daemon, Addr: {}",
-              rtodo.config.address
+              rtask.config.address
             );
             return;
           }
@@ -150,7 +150,7 @@ impl Operation {
             Err(err) => {
               error!(
                 "Error: Failed to add entry, cannot connect to daemon, Addr: {}, Err: {}",
-                rtodo.config.address, err
+                rtask.config.address, err
               );
             }
           }
@@ -158,11 +158,11 @@ impl Operation {
         Err(err) => {
           error!(
             "Error: Failed to add entry, cannot connect to daemon, Addr: {}, Err: {}",
-            rtodo.config.address, err
+            rtask.config.address, err
           );
         }
       },
-      Operation::StartDaemon() => match daemon::start_daemon(RwLock::new(rtodo)) {
+      Operation::StartDaemon() => match daemon::start_daemon(RwLock::new(rtask)) {
         Ok(_) => {
           return;
         }
@@ -296,7 +296,7 @@ impl Default for Config {
   }
 }
 
-impl Rtodo {
+impl Rtask {
   pub fn add_entry(&mut self, entry: Entry) -> Result<(), Box<dyn Error>> {
     self.config.add_entry(entry, self.cur_entry_id + 1);
     self.write_conf()?;
@@ -344,7 +344,7 @@ impl Rtodo {
   }
 
   pub fn stop_daemon(&mut self) {
-    self.daemon_status = RtodoDaemonStatus::Stopped;
+    self.daemon_status = RtaskDaemonStatus::Stopped;
   }
 }
 
@@ -355,8 +355,8 @@ impl<T> ResCommonData<T> {
 }
 
 impl<T> ReqCommonData<T> {
-  pub fn check_token(&self, rtodo: &Rtodo) -> bool {
-    self.token == rtodo.get_token()
+  pub fn check_token(&self, rtask: &Rtask) -> bool {
+    self.token == rtask.get_token()
   }
 }
 

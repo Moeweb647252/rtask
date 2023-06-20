@@ -7,7 +7,7 @@ import { useStore } from '../stores/storage'
 import { CONFIG } from '../config';
 import { useDialog } from 'naive-ui';
 
-document.title = 'Rtodo Login';
+document.title = 'Rtask Login';
 
 const dialog = useDialog();
 

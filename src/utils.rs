@@ -33,23 +33,23 @@ pub fn check_if_help_in_args(args: &[String]) -> bool {
   false
 }
 
-pub fn check_token(data: &ReqData, rtodo: &Rtodo) -> bool {
+pub fn check_token(data: &ReqData, rtask: &Rtask) -> bool {
   #[cfg(debug_assertions)]
   info!(
-    "Info: token in request: {}, token in rtodo: {}",
+    "Info: token in request: {}, token in rtask: {}",
     data
       .get("token")
       .unwrap_or(&serde_json::Value::Null)
       .as_str()
       .unwrap_or(""),
-    rtodo.get_token()
+    rtask.get_token()
   );
   data
     .get("token")
     .unwrap_or(&serde_json::Value::Null)
     .as_str()
     .unwrap_or("")
-    == rtodo.get_token()
+    == rtask.get_token()
 }
 
 pub fn nerr(code: i32, msg: &str) -> String {
@@ -90,18 +90,18 @@ pub fn check_if_process_by_pid_alive(pid: i32) -> bool {
   }
 }
 
-pub async fn get_rtodo_read_gurad(state: &RS) -> RwLockReadGuard<Rtodo> {
+pub async fn get_rtask_read_gurad(state: &RS) -> RwLockReadGuard<Rtask> {
   loop {
-    match state.rtodo.try_read() {
+    match state.rtask.try_read() {
       Ok(data) => break data,
       Err(_) => tokio::time::sleep(tokio::time::Duration::from_millis(100)).await,
     }
   }
 }
 
-pub async fn get_rtodo_write_gurad(state: &RS) -> RwLockWriteGuard<Rtodo> {
+pub async fn get_rtask_write_gurad(state: &RS) -> RwLockWriteGuard<Rtask> {
   loop {
-    match state.rtodo.try_write() {
+    match state.rtask.try_write() {
       Ok(data) => {
         #[cfg(debug_assertions)]
         info!(

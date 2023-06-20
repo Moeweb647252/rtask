@@ -7,7 +7,7 @@ use std::{
 };
 use ts_rs::TS;
 
-pub type RS = web::Data<RtodoState>;
+pub type RS = web::Data<RtaskState>;
 pub type ReqData = web::Json<serde_json::Value>;
 pub type ReqDataT<T> = web::Json<ReqCommonData<T>>;
 
@@ -23,11 +23,11 @@ pub struct ResCommonData<T> {
   pub data: T,
 }
 
-pub struct RtodoState {
-  pub rtodo: Arc<RwLock<Rtodo>>,
+pub struct RtaskState {
+  pub rtask: Arc<RwLock<Rtask>>,
 }
 
-pub struct Rtodo {
+pub struct Rtask {
   pub config: Config,
   pub works: Vec<RwLock<Work>>,
   pub cur_entry_id: u32,
@@ -35,11 +35,11 @@ pub struct Rtodo {
   pub executor_pid: i32,
   pub checker_pid: i32,
   pub server_pid: i32,
-  pub daemon_status: RtodoDaemonStatus,
+  pub daemon_status: RtaskDaemonStatus,
   pub rcli: reqwest::blocking::Client,
 }
 
-pub enum RtodoDaemonStatus {
+pub enum RtaskDaemonStatus {
   Running,
   Stopped,
 }

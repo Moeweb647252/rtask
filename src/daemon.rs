@@ -9,9 +9,9 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time;
 
-pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
+pub fn start_executor(rtask_rwl: Arc<RwLock<Rtask>>) {
   {
-    match rtodo_rwl.write() {
+    match rtask_rwl.write() {
       Ok(data) => {
         #[cfg(debug_assertions)]
         info!(
@@ -40,11 +40,11 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
   loop {
     thread::sleep(time::Duration::from_millis(100));
     let works = {
-      &match rtodo_rwl.try_read() {
+      &match rtask_rwl.try_read() {
         Ok(data) => {
           match data.daemon_status {
-            RtodoDaemonStatus::Running => (),
-            RtodoDaemonStatus::Stopped => {
+            RtaskDaemonStatus::Running => (),
+            RtaskDaemonStatus::Stopped => {
               info!("Info: Stopping executor");
               exit(0);
             }
@@ -196,9 +196,9 @@ pub fn start_executor(rtodo_rwl: Arc<RwLock<Rtodo>>) {
   }
 }
 
-pub fn start_checker(rtodo_rwl: Arc<RwLock<Rtodo>>) {
+pub fn start_checker(rtask_rwl: Arc<RwLock<Rtask>>) {
   {
-    match rtodo_rwl.write() {
+    match rtask_rwl.write() {
       Ok(data) => {
         #[cfg(debug_assertions)]
         info!(
@@ -227,7 +227,7 @@ pub fn start_checker(rtodo_rwl: Arc<RwLock<Rtodo>>) {
   loop {
     thread::sleep(time::Duration::from_millis(100));
     let works = {
-      &match rtodo_rwl.try_read() {
+      &match rtask_rwl.try_read() {
         Ok(data) => data,
         Err(err) => {
           error!(
@@ -288,15 +288,15 @@ pub fn start_checker(rtodo_rwl: Arc<RwLock<Rtodo>>) {
   }
 }
 
-pub fn start_daemon(rtodo_rwl: RwLock<Rtodo>) -> Result<(), Box<dyn Error>> {
+pub fn start_daemon(rtask_rwl: RwLock<Rtask>) -> Result<(), Box<dyn Error>> {
   ctrlc::set_handler(|| exit(0)).unwrap();
-  let rtodo_rwl = Arc::new(rtodo_rwl);
-  let rtodo_rwl_move = rtodo_rwl.clone();
-  let server_thread = thread::spawn(move || start_server(rtodo_rwl_move));
-  let rtodo_rwl_move = rtodo_rwl.clone();
-  thread::spawn(move || start_executor(rtodo_rwl_move));
-  let rtodo_rwl_move = rtodo_rwl.clone();
-  thread::spawn(move || start_checker(rtodo_rwl_move));
+  let rtask_rwl = Arc::new(rtask_rwl);
+  let rtask_rwl_move = rtask_rwl.clone();
+  let server_thread = thread::spawn(move || start_server(rtask_rwl_move));
+  let rtask_rwl_move = rtask_rwl.clone();
+  thread::spawn(move || start_executor(rtask_rwl_move));
+  let rtask_rwl_move = rtask_rwl.clone();
+  thread::spawn(move || start_checker(rtask_rwl_move));
   match server_thread.join() {
     Ok(_) => (),
     Err(_) => {
