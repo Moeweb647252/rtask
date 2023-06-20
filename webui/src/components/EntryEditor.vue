@@ -36,8 +36,9 @@ const timerTypeOptions = [
   }
 ]
 
-const editModalActionType = ref("");
-const editModalTriggerType = ref("");
+const editingActionType = ref("");
+const editingTriggerType = ref("");
+const editingTimerType = ref("");
 
 const editingEntry = ref({} as Entry)
 
@@ -97,11 +98,11 @@ onMounted(() => {
     </div>
     <div>
       ActionType:
-      <n-select @update:value="handleActionTypeUpdate" v-model:value="editModalActionType" label="ActionType"
+      <n-select @update:value="handleActionTypeUpdate" v-model:value="editingActionType" label="ActionType"
         :options="actionTypeOptions">
       </n-select>
     </div>
-    <n-spce vertical v-if='editModalActionType == "exec"'>
+    <n-spce vertical v-if='editingActionType == "exec"'>
       <div>
         Executable:
         <n-input v-model:value="(editingEntry.action as ExecAction).Exec.executable" placeholer="Executable"></n-input>
@@ -121,15 +122,16 @@ onMounted(() => {
     </n-spce>
     <div>
       TriggerType:
-      <n-select @update:value="handleTriggerTypeUpdate" v-model:value="editModalTriggerType" label="TriggerType"
+      <n-select @update:value="handleTriggerTypeUpdate" v-model:value="editingTriggerType" label="TriggerType"
         :options="triggerTypeOptions">
       </n-select>
     </div>
-    <n-spce vertical v-if='editModalTriggerType == "timer"'>
+    <n-spce vertical v-if='editingTriggerType == "timer"'>
       <div>
-        <n-select @update:value="handleTimerTypeUpdate" v-model:value="editModalTriggerType" label="TimerType"
+        <n-select @update:value="handleTimerTypeUpdate" v-model:value="editingTimerType" label="TimerType"
           :options="timerTypeOptions">
         </n-select>
+
       </div>
     </n-spce>
     <n-button type="primary">Save</n-button>
