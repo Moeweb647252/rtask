@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import DashboardView from '../views/DashboardView.vue'
-import LoginView from '../views/LoginView.vue'
-import { useStore } from '../stores/storage'
+import DashboardView from '../../views/DashboardView.vue'
+import LoginView from '../../views/LoginView.vue'
+import { useStore } from '../../stores/storage'
 import { CONFIG } from '@/config'
 
 const router = createRouter({
