@@ -1,92 +1,57 @@
 <script setup lang="ts">
 import { NButton, NSpace, NInput, NSelect, NDynamicInput } from 'naive-ui';
-import { ref, computed, onMounted } from 'vue';
-import type { Entry, ExecAction, Execute, Timer, Duration } from '@/types';
-import Record
+import { ref, onMounted } from 'vue';
+import type { EditingEntry } from '@/types';
 
 const actionTypeOptions = [
   {
     label: "Exec",
-    value: "exec"
+    value: "Exec"
   }
 ]
+
 const triggerTypeOptions = [
   {
     label: "Timer",
-    value: "timer"
+    value: "Eimer"
   }
 ]
 
 const timerTypeOptions = [
   {
     label: "Repeat",
-    value: "repeat"
+    value: "Eepeat"
   },
   {
     label: "Once",
-    value: "once"
+    value: "Once"
   },
   {
     label: "ManyTimes",
-    value: "manytimes"
+    value: "Manytimes"
   },
   {
     label: "Never",
-    value: "never"
+    value: "Never"
   }
 ]
 
-const editingActionType = ref("");
-const editingTriggerType = ref("");
-const editingTimerType = ref("");
 
-const editingEntry = ref({} as Entry)
 
-const handleActionTypeUpdate = (value: string) => {
-  switch (value) {
-    case "exec":
-      editingEntry.value.action = {
-        Exec: {} as Execute
-      };
-  }
-}
+const editingEntry = ref({} as EditingEntry)
 
-const handleTriggerTypeUpdate = (value: string) => {
-  switch (value) {
-    case "timer":
-      editingEntry.value.trigger = {
-        Timer: {} as Timer
-      };
-  }
-}
-
-const handleTimerTypeUpdate = (value: string) => {
-  switch (value) {
-    case "Repeat":
-      (editingEntry.value.trigger as { Timer: Timer }).Timer = {
-        Repeat: {} as Duration
-      };
-  }
-}
 
 const env_arr = ref([] as { key: string, value: string }[])
 const args_arr = ref([] as string[])
 
+/*
 const waitforuse_env = (value: { key: string, value: string }[]) => {
   (editingEntry.value.action as ExecAction).Exec.env = value.reduce((acc, item) => {
     acc[item.key] = item.value;
     return acc;
   }, {} as Record<string, string>);
 }
-
-onMounted(() => {
-  env_arr.value = Object.entries((editingEntry.value.action as ExecAction).Exec.env || {}).map(([key, value]) => {
-    return {
-      key,
-      value
-    }
-  })
-})
+*/
 
 </script>
 
@@ -98,14 +63,13 @@ onMounted(() => {
     </div>
     <div>
       ActionType:
-      <n-select @update:value="handleActionTypeUpdate" v-model:value="editingActionType" label="ActionType"
-        :options="actionTypeOptions">
+      <n-select v-model:value="editingEntry.action.type" label="ActionType" :options="actionTypeOptions">
       </n-select>
     </div>
-    <n-spce vertical v-if='editingActionType == "exec"'>
+    <n-spce vertical v-if='editingEntry.action.type == "Exec"'>
       <div>
         Executable:
-        <n-input v-model:value="(editingEntry.action as ExecAction).Exec.executable" placeholer="Executable"></n-input>
+        <n-input v-model:value="editingEntry.action.content.Exec.executable" placeholer="Executable"></n-input>
       </div>
       <div>
         Args:
@@ -117,21 +81,23 @@ onMounted(() => {
       </div>
       <div>
         WorkingDir:
-        <n-input v-model:value="(editingEntry.action as ExecAction).Exec.working_dir" placeholder="WorkingDir"></n-input>
+        <n-input v-model:value="editingEntry.action.content.Exec.working_dir" placeholder="WorkingDir"></n-input>
       </div>
     </n-spce>
     <div>
       TriggerType:
-      <n-select @update:value="handleTriggerTypeUpdate" v-model:value="editingTriggerType" label="TriggerType"
-        :options="triggerTypeOptions">
+      <n-select v-model:value="editingEntry.trigger.type" label="TriggerType" :options="triggerTypeOptions">
       </n-select>
     </div>
-    <n-spce vertical v-if='editingTriggerType == "timer"'>
+    <n-spce vertical v-if='editingEntry.trigger.type == "Timer"'>
       <div>
-        <n-select @update:value="handleTimerTypeUpdate" v-model:value="editingTimerType" label="TimerType"
-          :options="timerTypeOptions">
+        <n-select v-model:value="editingEntry.trigger.content.Timer.type" label="TimerType" :options="timerTypeOptions">
         </n-select>
-
+        <n-space vertical, v-if="editingEntry.trigger.content.Timer.type == 'Repeat'">
+          Repeat Every:
+          
+          <n-date-picker v-model:value="editingEntry.trigger.content.Timer.content.timestamp" type="datetime" clearable />
+        </n-space>
       </div>
     </n-spce>
     <n-button type="primary">Save</n-button>
